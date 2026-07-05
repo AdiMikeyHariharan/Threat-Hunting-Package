@@ -1,0 +1,15 @@
+id: SSH-ROOT-LOGIN-0001
+title: Successful SSH login as root
+level: high
+type: detection
+# Direct root logins over SSH are high-signal on hardened hosts.
+detection:
+  selection:
+    program: sshd
+    message|contains: "Accepted"
+  target_root:
+    user: root
+  condition: selection and target_root
+mitre:
+  - T1078
+  - T1021.004

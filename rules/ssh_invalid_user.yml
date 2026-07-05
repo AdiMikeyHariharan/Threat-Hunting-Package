@@ -1,0 +1,12 @@
+id: SSH-INVALID-USER-0001
+title: SSH login attempt for non-existent (invalid) user
+level: medium
+type: detection
+detection:
+  selection:
+    program: sshd
+    message|contains: "Invalid user"
+  condition: selection
+mitre:
+  - T1110
+  - T1078

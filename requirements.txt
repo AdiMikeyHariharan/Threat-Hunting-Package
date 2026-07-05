@@ -1,0 +1,2 @@
+structlog>=24.1.0
+PyYAML>=6.0

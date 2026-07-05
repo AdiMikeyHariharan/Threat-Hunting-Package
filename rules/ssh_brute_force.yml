@@ -1,0 +1,17 @@
+id: SSH-BRUTE-0001
+title: SSH brute force - repeated failed logins from one source
+level: high
+type: threshold
+# Frequency correlation: many single failures become one brute-force finding.
+detection:
+  selection:
+    program: sshd
+    message|contains: "Failed password"
+  condition: selection
+group_by: src_ip
+threshold:
+  count: 5
+  window_seconds: 60
+mitre:
+  - T1110.001
+  - T1021.004

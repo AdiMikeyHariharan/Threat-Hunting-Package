@@ -1,0 +1,23 @@
+id: NEW-ACCOUNT-0001
+title: New local user account created
+level: medium
+type: detection
+detection:
+  selection:
+    program|contains: useradd
+    message|contains: "new user"
+  condition: selection
+mitre:
+  - T1136.001
+---
+id: SUDO-ABUSE-0001
+title: Authentication failure via sudo
+level: medium
+type: detection
+detection:
+  selection:
+    program: sudo
+    message|contains: "authentication failure"
+  condition: selection
+mitre:
+  - T1548.003
