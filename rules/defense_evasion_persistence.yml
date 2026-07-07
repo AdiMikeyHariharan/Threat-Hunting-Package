@@ -1,0 +1,28 @@
+# Defense-evasion / persistence detections modelled on SigmaHQ + Splunk ESCU
+# ("Disable UFW / iptables", "Linux Password Change").
+
+id: FW-DISABLE-0001
+title: Host firewall disabled or flushed
+level: high
+type: detection
+detection:
+  selection:
+    message|contains: "COMMAND="
+    message|re: "(ufw disable|iptables -F|iptables --flush|nft flush|systemctl stop (firewalld|ufw|nftables))"
+  condition: selection
+mitre:
+  - T1686
+---
+id: PASSWD-CHANGE-0001
+title: Local account password changed
+level: medium
+type: detection
+# Password change is legitimate but security-relevant; correlated with a new
+# account or privileged-group add it becomes a strong persistence signal.
+detection:
+  selection:
+    program: passwd
+    message|contains: "password changed for"
+  condition: selection
+mitre:
+  - T1098

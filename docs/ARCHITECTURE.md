@@ -125,16 +125,17 @@ Suggested section mapping for the written submission:
 5. **Logging & auditability** — §4; include a screenshot of `siem_hunter.jsonl`.
 6. **Evaluation** — run on `sample_data/auth.log`; the 9 findings; note that the
    anomaly hunter *independently* flags the brute-force IP (defence in depth).
-7. **Limitations & future work** — real STIX ATT&CK feed, per-window anomaly
-   baselining, more log sources, rule unit-test harness.
+7. **Limitations & future work** — per-window anomaly baselining, more log
+   sources, rule unit-test harness.
 8. **Conclusion.**
 
 ---
 
 ## 6. Limitations (be honest in the report)
 
-* The ATT&CK table is a curated subset, not the full STIX bundle (the lookup
-  interface is identical, so swapping the source is a one-function change).
+* The ATT&CK table is the **full Enterprise matrix** (697 techniques) compiled
+  from the official MITRE STIX bundle via `scripts/build_attack_map.py`; re-run
+  that script to refresh against a newer ATT&CK release.
 * The anomaly detector baselines volume across the whole run, not per rolling
   window — fine for batch analysis, not streaming.
 * Only syslog (`auth.log`) and generic JSON parsers ship; other sources need a

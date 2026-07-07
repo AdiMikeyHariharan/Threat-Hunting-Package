@@ -5,8 +5,10 @@ rule engine (as found in [Wazuh](https://wazuh.com) and the vendor-neutral
 [Sigma](https://github.com/SigmaHQ/sigma) standard) — and enhances it** with
 three additions that a stock rule engine lacks:
 
-1. **MITRE ATT&CK enrichment** — every detection is resolved to its technique
-   name + tactic, so a finding is placed on the kill chain automatically.
+1. **MITRE ATT&CK enrichment** — every detection is resolved against the **full
+   ATT&CK Enterprise matrix** (697 techniques, compiled from the official MITRE
+   STIX bundle) into its technique name + tactic, placing each finding on the
+   kill chain automatically.
 2. **Frequency / threshold correlation** — Wazuh-style stateful rules that turn
    many benign single events ("one failed login") into one meaningful finding
    ("brute force from one IP").
@@ -70,6 +72,65 @@ line); the detection report is written to `logs/detections.json`.
 
 ---
 
+## Web dashboard (visual UI)
+
+The findings can be explored visually in a **React (Vite) dashboard** backed by a
+**FastAPI** server that wraps the same Python engine — the engine stays the
+single source of truth; the API just exposes it over HTTP.
+
+```bash
+# 1. Backend (from the project root, venv active)
+pip install -r requirements.txt
+uvicorn web.backend.app:app --port 8000
+
+# 2. Frontend (in a second terminal)
+cd frontend
+npm install
+npm run dev          # opens http://localhost:5173
+```
+
+The dashboard shows KPI cards (findings / events / pipeline time / severity
+mix), a per-engine-component breakdown (signature vs correlation vs anomaly),
+and a findings table where each row expands to reveal the ATT&CK techniques,
+correlation context, and underlying event ids. You can switch sample logs or
+upload your own from the top bar.
+
+API endpoints: `GET /api/analyze?source=<file>`, `POST /api/analyze` (file
+upload), `GET /api/samples`, `GET /api/rules`, `GET /api/health`.
+
+## Detection catalogue
+
+The bundled rules mirror detection content real SOCs run (SigmaHQ, Elastic
+Security, Splunk ESCU), adapted to Linux auth/syslog + network telemetry. Every
+rule is aligned to a current MITRE ATT&CK technique.
+
+| Rule | Detects | Type | Sev | ATT&CK |
+|---|---|---|---|---|
+| SSH-BRUTE-0001 | SSH brute force (repeated fails, one IP) | correlation | High | T1110.001 |
+| PWD-SPRAY-0001 | Password spraying (one IP, many accounts) | correlation | High | T1110.003 |
+| CRED-STUFF-0001 | Credential stuffing (one account, many IPs) | correlation | High | T1110.004 |
+| PORT-SCAN-0001 | Port scan (many distinct ports, one IP) | correlation | High | T1046 |
+| SSH-INVALID-USER-0001 | Login for non-existent user (enumeration) | signature | Medium | T1110 |
+| SSH-ROOT-LOGIN-0001 | Successful root SSH login | signature | High | T1078 |
+| OFFHOURS-ROOT-0001 | Root login outside business hours | signature | High | T1078 |
+| PRIVGRP-0001 | User added to sudo/wheel/admin group | signature | High | T1098 |
+| SUDO-ROOT-SHELL-0001 | Interactive root shell via sudo | signature | High | T1548.003 |
+| ROOT-ACCOUNT-0001 | UID=0 (root-equivalent) account created | signature | Critical | T1136.001 |
+| NEW-ACCOUNT-0001 | New local account created | signature | Medium | T1136.001 |
+| FW-DISABLE-0001 | Host firewall disabled / flushed | signature | High | T1686 |
+| PASSWD-CHANGE-0001 | Local account password changed | signature | Medium | T1098 |
+| SUDO-ABUSE-0001 | sudo authentication failure | signature | Medium | T1548.003 |
+| ANOMALY-VOLUME-0001 | Statistical volume outlier (no signature) | anomaly | Med/High | — |
+
+See them fire end to end: `python -m siem_hunter.cli --log
+sample_data/enterprise_sim.log --rules rules`.
+
+> **Note on ATT&CK currency:** the firewall rule maps to **T1686**, not the
+> commonly-cited `T1562.004` — the recent ATT&CK release renumbered "Disable or
+> Modify System Firewall" and moved it under the new *Defense Impairment*
+> tactic. Because enrichment runs against the live compiled table, stale ids are
+> caught rather than silently mis-reported.
+
 ## Writing rules
 
 Rules are YAML in the [Sigma](https://github.com/SigmaHQ/sigma) style. A file
@@ -109,6 +170,28 @@ threshold:
 mitre: [T1110.001, T1021.004]
 ```
 
+**Distinct-value threshold — port-scan detection:** add `distinct: <field>` to a
+threshold rule and it fires on the count of *distinct* values (not raw volume).
+Connections to many different ports from one source = a scan; repeated
+connections to one port do not trigger it.
+
+```yaml
+id: PORT-SCAN-0001
+title: Port scan - many distinct ports probed from one source
+level: high
+type: threshold
+detection:
+  selection:
+    message|contains: "connection from"
+  condition: selection
+group_by: src_ip
+threshold:
+  count: 15
+  window_seconds: 10
+  distinct: dst_port        # 15+ distinct ports in 10s from one IP
+mitre: [T1046]
+```
+
 **Field modifiers:** `field|contains`, `|startswith`, `|endswith`, `|re`
 (regex), `|gte`, `|lte`, or bare `field:` for equality. A list value means
 "any of these" (OR).
@@ -116,6 +199,23 @@ mitre: [T1110.001, T1021.004]
 **Condition language:** selection names combined with `and` / `or` / `not`,
 parentheses, and the quantifiers `all of them` / `N of them`. Malformed
 conditions are rejected at load time, not mid-run.
+
+---
+
+## Simulate a real attack (nmap)
+
+`scripts/simulate_scan.py` performs an **end-to-end** demo (not synthetic data):
+it binds a range of local ports, runs a real `nmap` connect-scan against them,
+and logs the actual connections — which the engine then flags as a port scan.
+
+```bash
+python scripts/simulate_scan.py                                  # runs nmap vs localhost
+python -m siem_hunter.cli --log sample_data/portscan.log --rules rules
+#  -> PORT-SCAN-0001 (High) fires, mapped to T1046 Network Service Discovery
+```
+
+Only `127.0.0.1` is scanned, so it is self-contained and safe. Regenerate the
+full ATT&CK lookup any time with `python scripts/build_attack_map.py`.
 
 ---
 

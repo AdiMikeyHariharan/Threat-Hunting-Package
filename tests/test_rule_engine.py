@@ -97,9 +97,51 @@ def test_threshold_does_not_fire_outside_window():
     assert dets == []
 
 
+def _conn(ip, port, offset_s):
+    ts = datetime(2026, 3, 10, 13, 0, tzinfo=timezone.utc) + timedelta(seconds=offset_s)
+    return Event(timestamp=ts, source="sensor",
+                 raw=f"conn-{ip}-{port}-{offset_s}",
+                 fields={"message": "connection from x to port y",
+                         "src_ip": ip, "dst_port": port})
+
+
+def test_distinct_threshold_detects_port_scan():
+    # 20 distinct ports from one IP in a 10s window -> scan.
+    rule = _rule("selection",
+                 {"selection": {"message|contains": "connection from"}},
+                 rule_type="threshold", group_by="src_ip",
+                 threshold_count=15, window_seconds=10, distinct="dst_port")
+    engine = RuleEngine([rule])
+    dets = []
+    for i in range(20):
+        dets += engine.evaluate(_conn("203.0.113.9", 9200 + i, 0))
+    assert len(dets) == 1
+    assert dets[0].context["distinct_count"] >= 15
+    assert dets[0].context["distinct_field"] == "dst_port"
+
+
+def test_distinct_threshold_ignores_repeats_to_one_port():
+    # 30 connections but all to the SAME port -> not a scan.
+    rule = _rule("selection",
+                 {"selection": {"message|contains": "connection from"}},
+                 rule_type="threshold", group_by="src_ip",
+                 threshold_count=15, window_seconds=10, distinct="dst_port")
+    engine = RuleEngine([rule])
+    dets = []
+    for i in range(30):
+        dets += engine.evaluate(_conn("203.0.113.9", 443, 0))
+    assert dets == []
+
+
 def test_bundled_rules_load():
     import pathlib
     rules = load_rules(pathlib.Path(__file__).parent.parent / "rules")
     ids = {r.id for r in rules}
     assert "SSH-BRUTE-0001" in ids
     assert "SUDO-ABUSE-0001" in ids  # proves multi-doc file parsing
+    assert "PORT-SCAN-0001" in ids
+    assert "ROOT-ACCOUNT-0001" in ids
+    # Enterprise detection pack (Sigma / Elastic / Splunk-modelled).
+    for rid in ("PWD-SPRAY-0001", "CRED-STUFF-0001", "PRIVGRP-0001",
+                "SUDO-ROOT-SHELL-0001", "FW-DISABLE-0001", "OFFHOURS-ROOT-0001"):
+        assert rid in ids, rid

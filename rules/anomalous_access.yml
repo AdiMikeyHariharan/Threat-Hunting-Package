@@ -1,0 +1,21 @@
+# Time-of-day access detection modelled on SigmaHQ / Elastic
+# ("Login at Unusual Hours"). Uses the parser's derived `hour` field.
+
+id: OFFHOURS-ROOT-0001
+title: Root SSH login outside business hours
+level: high
+type: detection
+# A successful root login between 22:00 and 06:00 UTC - outside normal admin
+# windows on most estates.
+detection:
+  login:
+    program: sshd
+    message|contains: "Accepted"
+    user: root
+  early:
+    hour|lte: 5
+  late:
+    hour|gte: 22
+  condition: login and (early or late)
+mitre:
+  - T1078

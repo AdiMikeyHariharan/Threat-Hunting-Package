@@ -1,0 +1,36 @@
+# Privilege-escalation detections modelled on SigmaHQ Linux rules
+# ("User Added to Privileged Group", "Sudo to Root").
+
+id: PRIVGRP-0001
+title: User added to a privileged group (sudo/wheel/admin)
+level: high
+type: detection
+detection:
+  selection:
+    program|contains: usermod
+  privileged:
+    message|re: "to group '?(sudo|wheel|admin|adm|root)"
+  gpasswd:
+    program|contains: gpasswd
+  gpasswd_priv:
+    message|re: "group (sudo|wheel|admin|adm|root)"
+  condition: (selection and privileged) or (gpasswd and gpasswd_priv)
+mitre:
+  - T1098
+  - T1548.003
+---
+id: SUDO-ROOT-SHELL-0001
+title: Interactive root shell obtained via sudo
+level: high
+type: detection
+# A sudo invocation whose COMMAND is a shell = an interactive root session,
+# a common hands-on-keyboard escalation step.
+detection:
+  selection:
+    program: sudo
+    message|contains: "USER=root"
+    message|re: "COMMAND=\\S*/(bash|sh|zsh|dash|su)(\\s|$)"
+  condition: selection
+mitre:
+  - T1548.003
+  - T1059.004

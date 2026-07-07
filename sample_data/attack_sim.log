@@ -1,0 +1,19 @@
+Jul 05 01:40:11 web02 sshd[3001]: Accepted publickey for deploy from 10.0.7.12 port 40122 ssh2
+Jul 05 01:55:03 web02 sshd[3044]: Accepted password for alice from 10.0.7.31 port 40890 ssh2
+Jul 05 02:03:20 web02 sshd[3080]: Accepted password for bob from 10.0.7.44 port 41002 ssh2
+Jul 05 02:09:58 web02 sshd[3120]: Invalid user admin from 203.0.113.66 port 51001
+Jul 05 02:09:59 web02 sshd[3121]: Failed password for invalid user admin from 203.0.113.66 port 51001 ssh2
+Jul 05 02:10:01 web02 sshd[3123]: Invalid user oracle from 203.0.113.66 port 51014
+Jul 05 02:10:02 web02 sshd[3124]: Failed password for invalid user oracle from 203.0.113.66 port 51014 ssh2
+Jul 05 02:10:04 web02 sshd[3126]: Failed password for root from 203.0.113.66 port 51022 ssh2
+Jul 05 02:10:06 web02 sshd[3128]: Failed password for root from 203.0.113.66 port 51031 ssh2
+Jul 05 02:10:08 web02 sshd[3130]: Failed password for root from 203.0.113.66 port 51040 ssh2
+Jul 05 02:10:10 web02 sshd[3132]: Failed password for root from 203.0.113.66 port 51049 ssh2
+Jul 05 02:10:12 web02 sshd[3134]: Failed password for admin from 203.0.113.66 port 51058 ssh2
+Jul 05 02:10:14 web02 sshd[3136]: Invalid user postgres from 203.0.113.66 port 51067
+Jul 05 02:10:15 web02 sshd[3137]: Failed password for invalid user postgres from 203.0.113.66 port 51067 ssh2
+Jul 05 02:10:31 web02 sshd[3160]: Accepted password for root from 203.0.113.66 port 51120 ssh2
+Jul 05 02:10:31 web02 sshd[3160]: pam_unix(sshd:session): session opened for user root by (uid=0)
+Jul 05 02:10:58 web02 useradd[3199]: new user: name=svc-update, UID=0, GID=0, home=/home/svc-update, shell=/bin/bash
+Jul 05 02:11:22 web02 sudo:   svc-update : TTY=pts/2 ; PWD=/root ; authentication failure ; USER=root
+Jul 05 02:14:40 web02 sshd[3301]: Accepted password for carol from 10.0.7.58 port 42210 ssh2

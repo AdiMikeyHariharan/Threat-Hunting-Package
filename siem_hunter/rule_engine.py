@@ -181,6 +181,9 @@ class Rule:
     group_by: str | None = None
     threshold_count: int = 0
     window_seconds: int = 0
+    # If set, the threshold counts DISTINCT values of this field per group
+    # (e.g. distinct destination ports = port scan) instead of raw event count.
+    distinct: str | None = None
 
     def matches_event(self, event: Event) -> bool:
         """True if this rule's condition holds for a single event."""
@@ -225,6 +228,7 @@ def _validate_rule(data: dict[str, Any], path: Path) -> Rule:
         rule.group_by = data.get("group_by")
         rule.threshold_count = int(th.get("count", 0))
         rule.window_seconds = int(th.get("window_seconds", 0))
+        rule.distinct = th.get("distinct")
         if not rule.group_by or rule.threshold_count <= 0 or rule.window_seconds <= 0:
             raise ValueError(
                 f"{path.name}: threshold rule needs group_by, "
@@ -320,22 +324,38 @@ class RuleEngine:
             while window and window[0].timestamp.timestamp() < cutoff:
                 window.popleft()
 
-            if len(window) >= rule.threshold_count:
+            # Measure either raw volume or the count of distinct field values
+            # (e.g. distinct destination ports hit = port scan).
+            if rule.distinct:
+                distinct_values = {
+                    e.get(rule.distinct) for e in window
+                    if e.get(rule.distinct) is not None
+                }
+                measure = len(distinct_values)
+            else:
+                distinct_values = None
+                measure = len(window)
+
+            if measure >= rule.threshold_count:
                 events = list(window)
+                extra = {
+                    "group_by": rule.group_by,
+                    "group_value": key,
+                    "count": len(events),
+                    "window_seconds": rule.window_seconds,
+                }
+                if rule.distinct:
+                    extra["distinct_field"] = rule.distinct
+                    extra["distinct_count"] = measure
+                    extra["distinct_values"] = sorted(str(v) for v in distinct_values)
                 out.append(
-                    self._build_detection(
-                        rule, events, event, entity=str(key),
-                        extra_context={
-                            "group_by": rule.group_by,
-                            "group_value": key,
-                            "count": len(events),
-                            "window_seconds": rule.window_seconds,
-                        },
-                    )
+                    self._build_detection(rule, events, event, entity=str(key),
+                                          extra_context=extra)
                 )
                 log.warning("detection", rule_id=rule.id, detector="threshold",
                             severity=rule.severity, entity=str(key),
-                            count=len(events), window_seconds=rule.window_seconds)
+                            measure=measure, distinct=rule.distinct or False,
+                            window_seconds=rule.window_seconds)
                 window.clear()  # avoid re-alerting on every subsequent event
         return out
 

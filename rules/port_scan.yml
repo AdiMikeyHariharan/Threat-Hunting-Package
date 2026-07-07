@@ -1,0 +1,17 @@
+id: PORT-SCAN-0001
+title: Port scan - many distinct ports probed from one source
+level: high
+type: threshold
+# Distinct-value correlation: a single connection is normal; connections to
+# many DIFFERENT ports from one source in seconds is a scan (e.g. nmap).
+detection:
+  selection:
+    message|contains: "connection from"
+  condition: selection
+group_by: src_ip
+threshold:
+  count: 15
+  window_seconds: 10
+  distinct: dst_port
+mitre:
+  - T1046

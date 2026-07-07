@@ -1,2 +1,7 @@
 structlog>=24.1.0
 PyYAML>=6.0
+
+# Web dashboard backend (optional — only needed to run the React UI)
+fastapi>=0.110
+uvicorn[standard]>=0.29
+python-multipart>=0.0.9

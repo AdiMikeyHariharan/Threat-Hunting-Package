@@ -1,0 +1,26 @@
+Jul 05 02:55:03 web05 sshd[5001]: Accepted publickey for deploy from 10.0.5.20 port 40100 ssh2
+Jul 05 03:12:00 web05 sshd[5100]: Accepted password for root from 10.0.5.9 port 41000 ssh2
+Jul 05 03:12:00 web05 sshd[5100]: pam_unix(sshd:session): session opened for user root by (uid=0)
+Jul 05 13:00:00 web05 sshd[5201]: Failed password for alice from 198.51.100.23 port 51001 ssh2
+Jul 05 13:00:35 web05 sshd[5202]: Failed password for bob from 198.51.100.23 port 51002 ssh2
+Jul 05 13:01:10 web05 sshd[5203]: Failed password for carol from 198.51.100.23 port 51003 ssh2
+Jul 05 13:01:45 web05 sshd[5204]: Failed password for dave from 198.51.100.23 port 51004 ssh2
+Jul 05 13:02:20 web05 sshd[5205]: Failed password for eve from 198.51.100.23 port 51005 ssh2
+Jul 05 13:02:55 web05 sshd[5206]: Failed password for frank from 198.51.100.23 port 51006 ssh2
+Jul 05 13:03:30 web05 sshd[5207]: Failed password for grace from 198.51.100.23 port 51007 ssh2
+Jul 05 13:04:05 web05 sshd[5208]: Failed password for henry from 198.51.100.23 port 51008 ssh2
+Jul 05 13:10:00 web05 sshd[5301]: Failed password for admin from 203.0.113.10 port 52001 ssh2
+Jul 05 13:11:00 web05 sshd[5302]: Failed password for admin from 203.0.113.11 port 52002 ssh2
+Jul 05 13:12:00 web05 sshd[5303]: Failed password for admin from 203.0.113.12 port 52003 ssh2
+Jul 05 13:13:00 web05 sshd[5304]: Failed password for admin from 203.0.113.13 port 52004 ssh2
+Jul 05 13:14:00 web05 sshd[5305]: Failed password for admin from 203.0.113.14 port 52005 ssh2
+Jul 05 13:15:00 web05 sshd[5306]: Failed password for admin from 203.0.113.15 port 52006 ssh2
+Jul 05 13:16:00 web05 sshd[5307]: Failed password for admin from 203.0.113.16 port 52007 ssh2
+Jul 05 13:17:00 web05 sshd[5308]: Failed password for admin from 203.0.113.17 port 52008 ssh2
+Jul 05 13:18:00 web05 sshd[5309]: Failed password for admin from 203.0.113.18 port 52009 ssh2
+Jul 05 13:19:00 web05 sshd[5310]: Failed password for admin from 203.0.113.19 port 52010 ssh2
+Jul 05 14:00:00 web05 usermod[5400]: add 'contractor' to group 'sudo'
+Jul 05 14:05:00 web05 sudo:   contractor : TTY=pts/3 ; PWD=/home/contractor ; USER=root ; COMMAND=/bin/bash
+Jul 05 14:06:00 web05 sudo:   contractor : TTY=pts/3 ; PWD=/root ; USER=root ; COMMAND=/usr/sbin/ufw disable
+Jul 05 14:07:00 web05 passwd[5410]: password changed for backupsvc
+Jul 05 15:30:00 web05 sshd[5500]: Accepted password for alice from 10.0.5.31 port 42000 ssh2

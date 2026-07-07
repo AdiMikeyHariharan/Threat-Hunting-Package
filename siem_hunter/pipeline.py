@@ -54,7 +54,31 @@ class Pipeline:
         log.info("pipeline_complete", events=len(events),
                  detections=len(detections), by_detector=by_detector,
                  elapsed_ms=elapsed_ms)
+        self._last_stats = {
+            "events": len(events),
+            "detections": len(detections),
+            "by_detector": by_detector,
+            "elapsed_ms": elapsed_ms,
+        }
         return detections
+
+    def analyze(self, log_file: str | Path, fmt: str = "syslog") -> dict[str, Any]:
+        """Run the pipeline and return findings + summary stats as plain dicts.
+
+        Convenience wrapper for API/UI callers that want the numbers the run
+        computed (event count, timing, per-detector and per-severity totals)
+        alongside the detections, without re-parsing.
+        """
+        detections = self.run(log_file, fmt=fmt)
+        by_severity: dict[str, int] = {}
+        for d in detections:
+            by_severity[d.severity] = by_severity.get(d.severity, 0) + 1
+        stats = dict(self._last_stats)
+        stats["by_severity"] = by_severity
+        return {
+            "summary": stats,
+            "detections": [d.to_dict() for d in detections],
+        }
 
 
 def write_report(detections: list[Detection], out_path: str | Path) -> None:

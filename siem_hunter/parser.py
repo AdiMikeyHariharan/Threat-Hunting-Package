@@ -40,6 +40,9 @@ _MESSAGE_EXTRACTORS = [
                r"(?P<src_ip>\d+\.\d+\.\d+\.\d+)"),
     re.compile(r"session opened for user (?P<user>\S+)"),
     re.compile(r"Invalid user (?P<user>\S+) from (?P<src_ip>\d+\.\d+\.\d+\.\d+)"),
+    # Network sensor / honeypot connection log (used for port-scan detection).
+    re.compile(r"connection from (?P<src_ip>\d+\.\d+\.\d+\.\d+) to port "
+               r"(?P<dst_port>\d+)"),
 ]
 
 
@@ -69,12 +72,9 @@ def parse_syslog_line(line: str, source: str, assume_year: int) -> Event | None:
             fields.update({k: v for k, v in em.groupdict().items() if v})
             break
 
-    return Event(
-        timestamp=_parse_syslog_timestamp(m.group("ts"), assume_year),
-        source=source,
-        raw=line,
-        fields=fields,
-    )
+    ts = _parse_syslog_timestamp(m.group("ts"), assume_year)
+    fields["hour"] = ts.hour           # derived field for time-of-day rules
+    return Event(timestamp=ts, source=source, raw=line, fields=fields)
 
 
 def parse_json_line(line: str, source: str) -> Event | None:
@@ -95,6 +95,7 @@ def parse_json_line(line: str, source: str) -> Event | None:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
 
+    obj.setdefault("hour", ts.hour)    # derived field for time-of-day rules
     return Event(timestamp=ts, source=source, raw=line, fields=obj)
 
 
