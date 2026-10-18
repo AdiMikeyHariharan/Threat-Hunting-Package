@@ -1,0 +1,92 @@
+# Micro-SASE Enterprise API Gateway SIEM Threat Hunting Rules
+# Integrates gateway telemetry (logs/gateway_audit.jsonl) with the detection engine.
+
+id: SASE-SPRAY-0001
+title: Micro-SASE Gateway - Password spraying against multiple distinct accounts
+level: high
+type: threshold
+# Low-and-slow authentication attack: an attacker rotates usernames from a single source IP
+# to bypass single-user lockout thresholds. We detect multiple distinct user attempts.
+detection:
+  selection:
+    event_type: sase_gateway_access
+    path: /auth/token
+    status_code: 401
+  condition: selection
+group_by: src_ip
+threshold:
+  count: 3
+  window_seconds: 300
+  distinct: user
+mitre:
+  - T1110.003
+---
+id: SASE-BRUTE-0001
+title: Micro-SASE Gateway - Targeted credential brute force against single account
+level: medium
+type: threshold
+# Rapid repeated login failures against a single user identity.
+detection:
+  selection:
+    event_type: sase_gateway_access
+    path: /auth/token
+    status_code: 401
+  condition: selection
+group_by: user
+threshold:
+  count: 4
+  window_seconds: 300
+mitre:
+  - T1110.001
+---
+id: SASE-PBAC-ABUSE-0001
+title: Micro-SASE Gateway - PBAC unauthorized privilege probing and reconnaissance
+level: high
+type: threshold
+# A user or machine account repeatedly encounters 403 Forbidden across multiple privileged paths.
+detection:
+  selection:
+    event_type: sase_gateway_access
+    decision: DENY
+    status_code: 403
+  condition: selection
+group_by: user
+threshold:
+  count: 3
+  window_seconds: 300
+  distinct: path
+mitre:
+  - T1087
+---
+id: SASE-BYPASS-0001
+title: Micro-SASE Gateway - Direct backend bypass attempt detected
+level: critical
+type: detection
+# An attacker attempted to directly access backend microservices, bypassing the Zero-Trust PEP.
+detection:
+  selection:
+    event_type: sase_gateway_access
+    decision: DENY
+    status_code: 403
+    reason|contains: "Direct access to backend services is not allowed"
+  condition: selection
+mitre:
+  - T1190
+---
+id: SASE-BURST-EXHAUSTION-0001
+title: Micro-SASE Gateway - QBAC burst rate limit exhaustion (Potential DoS / Scraping)
+level: medium
+type: threshold
+# Aggressive request flood exceeding token bucket limits, triggering repeated 429 Too Many Requests.
+detection:
+  selection:
+    event_type: sase_gateway_access
+    decision: DENY
+    status_code: 429
+  condition: selection
+group_by: user
+threshold:
+  count: 4
+  window_seconds: 60
+mitre:
+  - T1499

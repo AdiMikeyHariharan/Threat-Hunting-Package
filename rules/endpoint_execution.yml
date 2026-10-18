@@ -1,0 +1,74 @@
+# Execution & suspicious process detections for endpoint / Sysmon logs.
+# Matches columns: image, parentimage, commandline, eventcode, user
+
+id: ENDPT-EXEC-0001
+title: LSASS access (Sysmon EventCode 10) - potential credential dumping
+level: critical
+type: detection
+detection:
+  selection:
+    eventcode: "10"
+    targetfilename|contains: "lsass"
+  condition: selection
+mitre:
+  - T1003.001
+---
+id: ENDPT-EXEC-0002
+title: Suspicious process spawned by svchost (potential hollow/inject)
+level: high
+type: detection
+detection:
+  selection:
+    parentimage|contains: "svchost.exe"
+  not_svchost:
+    image|contains: "svchost.exe"
+  suspicious:
+    image|re: "(cmd\\.exe|powershell\\.exe|wscript\\.exe|cscript\\.exe|mshta\\.exe|rundll32\\.exe|regsvr32\\.exe)"
+  condition: selection and suspicious and not not_svchost
+mitre:
+  - T1055
+  - T1543
+---
+id: ENDPT-EXEC-0003
+title: Scheduled task / backup utility spawning shell (Sysmon)
+level: high
+type: detection
+detection:
+  selection:
+    commandline|contains: "schtasks"
+  shell:
+    commandline|re: "(cmd\\.exe|powershell|bash)"
+  condition: selection or shell
+mitre:
+  - T1053.005
+  - T1059.001
+---
+id: ENDPT-EXEC-0004
+title: SYSTEM-user process creating outbound network connection
+level: medium
+type: detection
+detection:
+  selection:
+    user: "corp\\SYSTEM"
+    destinationip|re: "\\d+\\.\\d+\\.\\d+\\.\\d+"
+  condition: selection
+mitre:
+  - T1078.002
+  - T1571
+---
+id: ENDPT-EXEC-0005
+title: Burst of unique process executions from same host (living-off-the-land)
+level: medium
+type: threshold
+detection:
+  selection:
+    eventcode: "1"
+  condition: selection
+group_by: host
+threshold:
+  count: 15
+  window_seconds: 300
+  distinct: image
+mitre:
+  - T1059
+  - T1218

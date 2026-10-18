@@ -21,8 +21,8 @@ run-correlated, rotating) so the pipeline is itself fully auditable — which is
 the whole point of a SIEM.
 
 > Built as a semester threat-hunting project. See
-> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the design rationale and a
-> report skeleton.
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the SIEM detection engine design rationale, and
+> [`docs/MICRO_SASE_ACTION_PLAN.md`](docs/MICRO_SASE_ACTION_PLAN.md) for the Micro-SASE Enterprise API Gateway & IAM architecture roadmap.
 
 ---
 
@@ -97,6 +97,16 @@ upload your own from the top bar.
 
 API endpoints: `GET /api/analyze?source=<file>`, `POST /api/analyze` (file
 upload), `GET /api/samples`, `GET /api/rules`, `GET /api/health`.
+
+### Sign in and SIEM permissions
+
+The dashboard signs in through the Micro-SASE gateway (`/api/gateway/auth/token`).
+Use the existing demo IAM users from `docs/MICRO_SASE_ACTION_PLAN.md` (Alice,
+Bob, or Charlie). Protected SIEM routes validate the gateway JWT on the server:
+admins have full access, developers can analyze and upload, and finance users
+can read the rule/sample catalogue and analyze bundled samples. Only admins can
+analyze the live gateway audit log. The browser session lasts until sign out or
+the gateway token expires.
 
 ## Detection catalogue
 

@@ -1,0 +1,61 @@
+# Lateral-movement detections for endpoint / Sysmon logs.
+# Matches columns: image, destinationip, destinationport, protocol, host, user
+
+id: ENDPT-LMOV-0001
+title: Suspicious outbound connection to external IP from system process
+level: high
+type: detection
+detection:
+  selection:
+    image|contains: "svchost.exe"
+    destinationip|re: "^(?!10\\.0\\.0\\.|10\\.10\\.10\\.0|10\\.10\\.20\\.0|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.).*"
+  condition: selection
+mitre:
+  - T1021
+  - T1571
+---
+id: ENDPT-LMOV-0002
+title: Repeated outbound connections to external host (potential C2 beacon)
+level: high
+type: threshold
+detection:
+  selection:
+    image|contains: "svchost.exe"
+  condition: selection
+group_by: destinationip
+threshold:
+  count: 10
+  window_seconds: 600
+mitre:
+  - T1071
+  - T1071.001
+---
+id: ENDPT-LMOV-0003
+title: High-volume connections to port 443 from single host (potential exfiltration)
+level: medium
+type: threshold
+detection:
+  selection:
+    destinationport: "443"
+    protocol: tcp
+  condition: selection
+group_by: host
+threshold:
+  count: 20
+  window_seconds: 300
+mitre:
+  - T1048
+  - T1041
+---
+id: ENDPT-LMOV-0004
+title: Outbound connection on port 389 (LDAP - potential AD enumeration)
+level: medium
+type: detection
+detection:
+  selection:
+    destinationport: "389"
+    protocol: tcp
+  condition: selection
+mitre:
+  - T1018
+  - T1087.002

@@ -27,8 +27,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--log", required=True, help="log file to analyse")
     p.add_argument("--rules", default="rules", help="directory of YAML rules")
-    p.add_argument("--format", default="syslog", choices=["syslog", "json"],
-                   help="input log format")
+    p.add_argument("--format", default="syslog",
+                   choices=["syslog", "json", "csv", "xlsx", "xls"],
+                   help="input log format (syslog | json | csv | xlsx | xls)")
     p.add_argument("--out", default="logs/detections.json",
                    help="where to write the JSON detection report")
     p.add_argument("--anomaly-field", default="src_ip",

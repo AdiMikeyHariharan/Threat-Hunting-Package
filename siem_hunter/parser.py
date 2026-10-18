@@ -1,10 +1,12 @@
 """Log parsing / normalisation.
 
 A SIEM cannot match rules against free text — it first normalises each line
-into typed fields. This module mirrors that stage for two common formats:
+into typed fields. This module mirrors that stage for three common formats:
 
-  * Linux ``auth.log`` (syslog) lines, and
-  * generic JSON lines (one object per line).
+  * Linux ``auth.log`` (syslog) lines,
+  * generic JSON lines (one object per line), and
+  * tabular files — CSV (``.csv``) and Excel (``.xlsx``/``.xls``) spreadsheets,
+    where every row becomes one Event and every column becomes a field.
 
 Extending the parser to a new source means adding one function and registering
 it; rules never change.
@@ -16,6 +18,14 @@ import json
 import re
 from collections.abc import Iterator, Iterable
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+try:
+    import pandas as pd
+    _PANDAS_AVAILABLE = True
+except ImportError:  # pragma: no cover
+    _PANDAS_AVAILABLE = False
 
 from .logging_config import get_logger
 from .models import Event
@@ -95,8 +105,106 @@ def parse_json_line(line: str, source: str) -> Event | None:
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
 
+    # Normalise gateway and cloud access log fields to standard SIEM schema
+    if "client_ip" in obj and "src_ip" not in obj:
+        obj["src_ip"] = obj["client_ip"]
+    if "subject" in obj and "user" not in obj:
+        obj["user"] = obj["subject"]
+
     obj.setdefault("hour", ts.hour)    # derived field for time-of-day rules
     return Event(timestamp=ts, source=source, raw=line, fields=obj)
+
+
+# Common column name variants that represent a timestamp in tabular data.
+_TS_COLUMN_CANDIDATES = [
+    "timestamp", "@timestamp", "time", "datetime", "date_time",
+    "event_time", "eventtime", "log_time", "logtime", "ts",
+]
+
+
+def parse_tabular_file(
+    path: str | Path,
+    source: str,
+) -> Iterator["Event"]:
+    """Parse a CSV or Excel file into :class:`Event` objects.
+
+    Every row becomes one event and every column becomes a field.  A timestamp
+    column is detected automatically from a list of common name variants; if
+    none is found the current UTC time is used for all rows.
+
+    Parameters
+    ----------
+    path:
+        Absolute or relative path to the file.  Extension determines the
+        reader: ``.xlsx`` / ``.xls`` → ``pd.read_excel``; everything else
+        (including ``.csv``) → ``pd.read_csv``.
+    source:
+        Label used for logging and the ``Event.source`` field.
+    """
+    if not _PANDAS_AVAILABLE:
+        raise ImportError(
+            "pandas is required for CSV/Excel parsing. "
+            "Install it with: pip install pandas openpyxl"
+        )
+
+    path = Path(path)
+    ext = path.suffix.lower()
+    if ext in (".xlsx", ".xls"):
+        df = pd.read_excel(path, dtype=str)
+    else:
+        df = pd.read_csv(path, dtype=str)
+
+    # Normalise column names: strip whitespace, lower-case.
+    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+
+    # Find the timestamp column (first match wins).
+    ts_col: str | None = None
+    for candidate in _TS_COLUMN_CANDIDATES:
+        if candidate in df.columns:
+            ts_col = candidate
+            break
+
+    parsed = skipped = 0
+    now_utc = datetime.now(timezone.utc)
+
+    for _, row in df.iterrows():
+        fields: dict = {k: v for k, v in row.items() if pd.notna(v)}
+
+        # Resolve timestamp.
+        if ts_col and ts_col in fields:
+            raw_ts = str(fields.pop(ts_col))
+            try:
+                ts = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
+            except ValueError:
+                try:
+                    ts = pd.to_datetime(raw_ts).to_pydatetime()
+                except Exception:
+                    ts = now_utc
+        else:
+            ts = now_utc
+
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+
+        fields.setdefault("hour", ts.hour)
+
+        # Build a human-readable raw representation of the row.
+        raw_line = ", ".join(f"{k}={v}" for k, v in row.items() if pd.notna(v))
+
+        try:
+            yield Event(timestamp=ts, source=source, raw=raw_line, fields=fields)
+            parsed += 1
+        except Exception as exc:  # pragma: no cover
+            log.debug("tabular_row_error", source=source, error=str(exc))
+            skipped += 1
+
+    log.info(
+        "ingestion_complete",
+        source=source,
+        format="tabular",
+        parsed=parsed,
+        skipped=skipped,
+    )
 
 
 def parse_lines(
@@ -122,6 +230,13 @@ def parse_lines(
             event = parse_syslog_line(line, source, assume_year)
         elif fmt == "json":
             event = parse_json_line(line, source)
+        elif fmt in ("csv", "xlsx", "xls"):
+            # Tabular formats need the full file path, not individual lines.
+            # Callers should use parse_tabular_file() directly for these.
+            raise ValueError(
+                f"format {fmt!r} is tabular — use parse_tabular_file() "
+                "instead of parse_lines()."
+            )
         else:
             raise ValueError(f"unknown format: {fmt!r}")
 

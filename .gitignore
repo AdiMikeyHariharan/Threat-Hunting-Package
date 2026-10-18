@@ -8,6 +8,9 @@ logs/*.log
 logs/_upload_*
 .pytest_cache/
 
+# Gateway runtime data (hashed API key store)
+gateway/data/
+
 # Frontend
 frontend/node_modules/
 frontend/dist/

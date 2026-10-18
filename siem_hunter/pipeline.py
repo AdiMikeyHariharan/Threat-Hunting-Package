@@ -14,7 +14,7 @@ from typing import Any
 from .anomaly import AnomalyDetector
 from .logging_config import get_logger
 from .models import Detection
-from .parser import parse_lines
+from .parser import parse_lines, parse_tabular_file
 from .rule_engine import RuleEngine, load_rules
 
 log = get_logger(__name__)
@@ -31,8 +31,12 @@ class Pipeline:
         log.info("pipeline_start", log_file=str(log_file), format=fmt)
 
         # 1. Ingest + normalise.
-        with log_file.open(encoding="utf-8", errors="replace") as fh:
-            events = list(parse_lines(fh, source=log_file.name, fmt=fmt))
+        log_file = Path(log_file)
+        if fmt in ("csv", "xlsx", "xls"):
+            events = list(parse_tabular_file(log_file, source=log_file.name))
+        else:
+            with log_file.open(encoding="utf-8", errors="replace") as fh:
+                events = list(parse_lines(fh, source=log_file.name, fmt=fmt))
 
         # 2. Order by time so threshold windows are correct.
         events.sort(key=lambda e: e.timestamp)
