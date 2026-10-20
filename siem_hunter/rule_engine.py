@@ -38,6 +38,7 @@ from .models import Detection, Event
 log = get_logger(__name__)
 
 _VALID_SEVERITY = {"low", "medium", "high", "critical"}
+_VALID_MODIFIERS = {"eq", "contains", "startswith", "endswith", "re", "gte", "lte"}
 
 
 # --------------------------------------------------------------------------- #
@@ -93,7 +94,20 @@ _TOKEN_RE = re.compile(r"\(|\)|\ball of them\b|\b\d+ of them\b|\band\b|\bor\b|\b
 
 
 def _tokenize(condition: str) -> list[str]:
-    return _TOKEN_RE.findall(condition.strip())
+    tokens: list[str] = []
+    pos = 0
+    for match in _TOKEN_RE.finditer(condition):
+        if condition[pos:match.start()].strip():
+            raise ValueError(
+                f"invalid token in condition near {condition[pos:match.start()]!r}"
+            )
+        tokens.append(match.group())
+        pos = match.end()
+    if condition[pos:].strip():
+        raise ValueError(f"invalid token in condition near {condition[pos:]!r}")
+    if not tokens:
+        raise ValueError("condition must not be empty")
+    return tokens
 
 
 class _ConditionParser:
@@ -116,6 +130,8 @@ class _ConditionParser:
         return self.tokens[self.pos] if self.pos < len(self.tokens) else None
 
     def _next(self) -> str:
+        if self.pos >= len(self.tokens):
+            raise ValueError("unexpected end of condition")
         tok = self.tokens[self.pos]
         self.pos += 1
         return tok
@@ -148,8 +164,9 @@ class _ConditionParser:
         if tok == "(":
             self._next()
             value = self._expr(results)
-            if self._next() != ")":
+            if self._peek() != ")":
                 raise ValueError("unbalanced parentheses in condition")
+            self._next()
             return value
         if tok == "all of them":
             self._next()
@@ -195,6 +212,9 @@ class Rule:
 
 
 def _validate_rule(data: dict[str, Any], path: Path) -> Rule:
+    if not isinstance(data, dict):
+        raise ValueError(f"{path.name}: each YAML document must be a mapping")
+
     required = ("id", "title", "level", "detection")
     missing = [k for k in required if k not in data]
     if missing:
@@ -205,12 +225,37 @@ def _validate_rule(data: dict[str, Any], path: Path) -> Rule:
         raise ValueError(f"{path.name}: invalid level {level!r}")
 
     detection = data["detection"]
+    if not isinstance(detection, dict):
+        raise ValueError(f"{path.name}: detection must be a mapping")
     if "condition" not in detection:
         raise ValueError(f"{path.name}: detection block needs a 'condition'")
 
     selections = {k: v for k, v in detection.items() if k != "condition"}
     if not selections:
         raise ValueError(f"{path.name}: detection block has no selections")
+    for name, selection in selections.items():
+        if not isinstance(name, str) or not isinstance(selection, dict) or not selection:
+            raise ValueError(
+                f"{path.name}: selection {name!r} must be a non-empty mapping"
+            )
+        for key, expected in selection.items():
+            if not isinstance(key, str) or not key:
+                raise ValueError(
+                    f"{path.name}: selection field names must be non-empty strings"
+                )
+            field_name, _, modifier = key.partition("|")
+            modifier = modifier or "eq"
+            if not field_name or modifier not in _VALID_MODIFIERS:
+                raise ValueError(f"{path.name}: invalid field matcher {key!r}")
+            if modifier == "re":
+                patterns = expected if isinstance(expected, list) else [expected]
+                try:
+                    for pattern in patterns:
+                        re.compile(str(pattern))
+                except re.error as exc:
+                    raise ValueError(
+                        f"{path.name}: invalid regex for {key!r}: {exc}"
+                    ) from exc
 
     rule_type = str(data.get("type", "detection")).lower()
     rule = Rule(
@@ -220,14 +265,26 @@ def _validate_rule(data: dict[str, Any], path: Path) -> Rule:
         rule_type=rule_type,
         selections=selections,
         condition=str(detection["condition"]),
-        mitre=[str(t) for t in data.get("mitre", [])],
+        mitre=[],
     )
+
+    mitre = data.get("mitre", [])
+    if not isinstance(mitre, list):
+        raise ValueError(f"{path.name}: mitre must be a list")
+    rule.mitre = [str(t) for t in mitre]
 
     if rule_type == "threshold":
         th = data.get("threshold", {})
+        if not isinstance(th, dict):
+            raise ValueError(f"{path.name}: threshold must be a mapping")
         rule.group_by = data.get("group_by")
-        rule.threshold_count = int(th.get("count", 0))
-        rule.window_seconds = int(th.get("window_seconds", 0))
+        try:
+            rule.threshold_count = int(th.get("count", 0))
+            rule.window_seconds = int(th.get("window_seconds", 0))
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"{path.name}: threshold count and window_seconds must be integers"
+            ) from exc
         rule.distinct = th.get("distinct")
         if not rule.group_by or rule.threshold_count <= 0 or rule.window_seconds <= 0:
             raise ValueError(
@@ -248,12 +305,13 @@ def load_rules(rules_dir: str | Path) -> list[Rule]:
     """Load and validate every ``*.yml`` / ``*.yaml`` rule in a directory."""
     rules_dir = Path(rules_dir)
     rules: list[Rule] = []
+    rule_ids: set[str] = set()
     for path in sorted(rules_dir.glob("*.y*ml")):
         try:
             # A file may hold multiple rules separated by '---'.
             documents = [d for d in yaml.safe_load_all(path.read_text(encoding="utf-8"))
                          if d]
-        except yaml.YAMLError as exc:
+        except (yaml.YAMLError, OSError) as exc:
             log.error("rule_load_failed", path=str(path), error=str(exc))
             continue
         for data in documents:
@@ -262,7 +320,12 @@ def load_rules(rules_dir: str | Path) -> list[Rule]:
             except ValueError as exc:
                 log.error("rule_load_failed", path=str(path), error=str(exc))
                 continue
+            if rule.id in rule_ids:
+                log.error("rule_load_failed", path=str(path),
+                          error=f"duplicate rule id {rule.id!r}")
+                continue
             rules.append(rule)
+            rule_ids.add(rule.id)
             log.info("rule_loaded", rule_id=rule.id, title=rule.title,
                      type=rule.rule_type, severity=rule.severity)
     log.info("rules_loaded_total", count=len(rules), directory=str(rules_dir))

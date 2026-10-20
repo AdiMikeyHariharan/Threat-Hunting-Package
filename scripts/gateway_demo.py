@@ -2,7 +2,7 @@
 
 Run this script to see the Zero-Trust Policy Enforcement Point (PEP) in action:
     source .venv/bin/activate
-    python scripts/test_gateway_demo.py
+    python scripts/gateway_demo.py
 """
 
 import json
@@ -13,11 +13,16 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+import httpx  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from gateway import mock_backends, proxy  # noqa: E402
 from gateway.main import app  # noqa: E402
 from gateway.users import DEMO_USERS  # noqa: E402
 
+# The mock backends normally run as their own process; run them in-process here.
+proxy.UPSTREAM_TRANSPORT = httpx.ASGITransport(app=mock_backends.app)
 client = TestClient(app)
+backend = TestClient(mock_backends.app)
 
 
 def login(username: str) -> str:
@@ -60,7 +65,7 @@ r = client.post("/auth/register-api-key", json={"service_id": "x", "role": "admi
 print(f"Status: {r.status_code} (expected 403) -> {r.json()['detail']}")
 
 step(7, "Attacker skips the gateway and calls the backend directly")
-r = client.get("/mock-service/admin-panel/config")
+r = backend.get("/mock-service/admin-panel/config")
 print(f"Status: {r.status_code} (expected 403) -> {r.json()['detail']}")
 
 step(8, "Charlie (admin) issues a machine API key for the billing daemon")
@@ -173,12 +178,12 @@ print(f"  Downstream:       {r.json().get('downstream_service')}")
 step(25, "Simulate primary failure -> Instant dynamic failover to secondary backup")
 original_dispatch = proxy._dispatch_http
 
-async def mock_fail_primary(target_url, method, headers, params, body, app):
+async def mock_fail_primary(target_url, method, headers, params, body):
     # If target is primary billing, simulate downstream 500 failure
     if "mock-service/billing" in target_url and "billing-backup" not in target_url:
         import httpx
         return httpx.Response(status_code=500, content=b'{"error": "primary data center outage"}')
-    return await original_dispatch(target_url, method, headers, params, body, app)
+    return await original_dispatch(target_url, method, headers, params, body)
 
 proxy._dispatch_http = mock_fail_primary
 try:
@@ -254,5 +259,4 @@ print(f"Report written successfully to: {out_report} ({out_report.stat().st_size
 print("\n" + "=" * 70)
 print(" ✅ ALL 5 PHASES DEMO COMPLETE: ZERO-TRUST MICRO-SASE + SIEM HUNTING")
 print("=" * 70 + "\n")
-
 

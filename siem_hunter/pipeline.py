@@ -22,13 +22,20 @@ log = get_logger(__name__)
 
 class Pipeline:
     def __init__(self, rules_dir: str | Path, anomaly_field: str = "src_ip"):
-        self.engine = RuleEngine(load_rules(rules_dir))
-        self.anomaly = AnomalyDetector(entity_field=anomaly_field)
+        self.rules = load_rules(rules_dir)
+        self.anomaly_field = anomaly_field
+        self.engine = RuleEngine(self.rules)
+        self.anomaly = AnomalyDetector(entity_field=self.anomaly_field)
 
     def run(self, log_file: str | Path, fmt: str = "syslog") -> list[Detection]:
         started = time.perf_counter()
         log_file = Path(log_file)
         log.info("pipeline_start", log_file=str(log_file), format=fmt)
+
+        # Correlation and anomaly state belongs to one analysis. Reusing this
+        # Pipeline instance must not mix events from separate files or runs.
+        self.engine = RuleEngine(self.rules)
+        self.anomaly = AnomalyDetector(entity_field=self.anomaly_field)
 
         # 1. Ingest + normalise.
         log_file = Path(log_file)

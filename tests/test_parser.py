@@ -1,4 +1,6 @@
-from siem_hunter.parser import parse_syslog_line, parse_lines
+from datetime import timezone
+
+from siem_hunter.parser import parse_json_line, parse_syslog_line, parse_lines
 
 
 def test_syslog_extracts_failed_password_fields():
@@ -23,6 +25,25 @@ def test_syslog_extracts_invalid_user():
 def test_unparseable_line_is_skipped():
     events = list(parse_lines(["totally not a syslog line", ""], "x", fmt="syslog"))
     assert events == []
+
+
+def test_invalid_syslog_timestamp_is_skipped():
+    line = "Mar 99 99:99:99 web01 sshd[1]: malformed timestamp"
+    assert parse_syslog_line(line, "auth.log", assume_year=2026) is None
+
+
+def test_json_scalar_is_skipped_instead_of_crashing():
+    assert parse_json_line("[]", "events.json") is None
+
+
+def test_json_timestamp_is_normalized_to_utc():
+    event = parse_json_line(
+        '{"timestamp":"2026-03-10T10:00:00+05:30"}', "events.json"
+    )
+    assert event is not None
+    assert event.timestamp.tzinfo == timezone.utc
+    assert event.timestamp.hour == 4
+    assert event.get("hour") == 4
 
 
 def test_json_format_parsing():

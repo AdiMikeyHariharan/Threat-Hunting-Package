@@ -2,11 +2,12 @@
 
 from fastapi.testclient import TestClient
 
-from gateway import quota
+from gateway import mock_backends, quota
 from gateway.main import app
 from gateway.users import DEMO_USERS
 
 client = TestClient(app)
+backend = TestClient(mock_backends.app)
 
 
 def _login(username: str) -> dict:
@@ -190,7 +191,7 @@ def test_new_denials_are_audited(monkeypatch):
     alice = _login("alice")
     client.delete("/proxy/inventory/items/1", headers=alice)               # PBAC
     client.post("/auth/register-api-key", json={"service_id": "x"}, headers=alice)  # admin-only
-    client.get("/mock-service/inventory/items")                            # bypass
+    backend.get("/mock-service/inventory/items")                           # bypass
 
     logs = client.get("/telemetry/audit?limit=50", headers=_login("charlie")).json()["logs"]
     reasons = " | ".join(l["reason"] for l in logs)

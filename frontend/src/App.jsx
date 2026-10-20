@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { analyzeSample, analyzeUpload, getSamples } from "./api.js";
+import { analyzeSample, analyzeUpload, completeSsoLogin, getSamples, logoutGateway, refreshGateway } from "./api.js";
 import SummaryCards from "./components/SummaryCards.jsx";
 import DetectorBreakdown from "./components/DetectorBreakdown.jsx";
 import DetectionsTable from "./components/DetectionsTable.jsx";
@@ -13,14 +13,51 @@ const ROLE_AVATARS = {
   admin: "🛡️",
 };
 
+function withExpiry(tokens) {
+  return { ...tokens, expires_at: Date.now() + (tokens.expires_in || 0) * 1000 };
+}
+
 export default function App() {
-  const [session, setSession] = useState(null);
+  const [ssoResult] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("sso"));
+  const [ssoPending, setSsoPending] = useState(ssoResult === "complete");
+  const [ssoError, setSsoError] = useState(null);
+  const [session, setSession] = useState(() => {
+    if (new URLSearchParams(window.location.hash.slice(1)).has("sso")) return null;
+    try {
+      const stored = window.sessionStorage.getItem("siem:session");
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeTab, setActiveTab] = useState("pep"); // "pep", "siem", "sdwan"
   const [samples, setSamples] = useState([]);
   const [source, setSource] = useState("gateway_audit.jsonl");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  useEffect(() => {
+    if (!ssoResult) return undefined;
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (ssoResult !== "complete") {
+      setSsoError(ssoResult === "denied"
+        ? "Your company account is not linked to an active gateway user. Contact your administrator."
+        : "SSO sign-in failed or was cancelled. Please try again.");
+      return undefined;
+    }
+    let active = true;
+    completeSsoLogin()
+      .then((tokens) => {
+        if (active) {
+          setSession(withExpiry(tokens));
+          setSsoError(null);
+        }
+      })
+      .catch((err) => { if (active) setSsoError(err.message); })
+      .finally(() => { if (active) setSsoPending(false); });
+    return () => { active = false; };
+  }, [ssoResult]);
 
   // Listen for session expiry events
   useEffect(() => {
@@ -32,6 +69,37 @@ export default function App() {
     window.addEventListener("siem:session-expired", onExpired);
     return () => window.removeEventListener("siem:session-expired", onExpired);
   }, []);
+
+  useEffect(() => {
+    try {
+      if (session) {
+        window.sessionStorage.setItem("siem:session", JSON.stringify(session));
+      } else {
+        window.sessionStorage.removeItem("siem:session");
+      }
+    } catch {
+      // The app remains usable when browser storage is unavailable.
+    }
+  }, [session]);
+
+  // Refresh the short-lived access token a minute before it expires.
+  useEffect(() => {
+    if (!session?.refresh_token || !session?.expires_at) return;
+    const delay = Math.max(0, session.expires_at - Date.now() - 60_000);
+    const timer = window.setTimeout(async () => {
+      try {
+        setSession(withExpiry(await refreshGateway(session.refresh_token)));
+      } catch {
+        window.dispatchEvent(new Event("siem:session-expired"));
+      }
+    }, delay);
+    return () => window.clearTimeout(timer);
+  }, [session?.refresh_token, session?.expires_at]);
+
+  function signOut() {
+    if (session) logoutGateway(session.access_token, session.refresh_token);
+    setSession(null);
+  }
 
   // When session is active, fetch samples and load default analysis with the token
   useEffect(() => {
@@ -62,7 +130,8 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [session?.access_token]);
+    // Load once per sign-in, not on every background token refresh.
+  }, [session?.subject]);
 
   async function run(src = source, tokenOverride = null) {
     const token = tokenOverride || session?.access_token;
@@ -101,9 +170,11 @@ export default function App() {
   if (!session) {
     return (
       <LoginPage
+        ssoError={ssoError}
+        ssoPending={ssoPending}
         onLoginSuccess={(newSession) => {
           setError(null);
-          setSession(newSession);
+          setSession(withExpiry(newSession));
           setActiveTab("pep");
         }}
       />
@@ -146,7 +217,7 @@ export default function App() {
             </div>
           </div>
 
-          <button className="user-signout-btn" onClick={() => setSession(null)}>
+          <button className="user-signout-btn" onClick={signOut}>
             Sign Out
           </button>
 
@@ -171,10 +242,12 @@ export default function App() {
               <button className="run-btn" onClick={() => run(source)} disabled={loading}>
                 {loading ? "Analysing…" : "Re-Analyse"}
               </button>
-              <label className="upload-btn">
-                Upload log
-                <input type="file" onChange={onUpload} hidden />
-              </label>
+              {["admin", "developer"].includes(session.role) && (
+                <label className="upload-btn">
+                  Upload log
+                  <input type="file" onChange={onUpload} hidden />
+                </label>
+              )}
             </div>
           )}
         </div>

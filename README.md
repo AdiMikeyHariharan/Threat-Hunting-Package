@@ -38,9 +38,11 @@ the whole point of a SIEM.
 
 ## Quick start
 
+Requires **Python 3.10+** (3.12 recommended).
+
 ```bash
 cd siem-threat-hunter
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
@@ -79,11 +81,18 @@ The findings can be explored visually in a **React (Vite) dashboard** backed by 
 single source of truth; the API just exposes it over HTTP.
 
 ```bash
-# 1. Backend (from the project root, venv active)
+# Shared secrets: export these in every backend terminal (same values).
+export SASE_JWT_SECRET="$(python -c 'import secrets;print(secrets.token_urlsafe(48))')"
+export SASE_INTERNAL_TOKEN="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
+
+# 1. Mock downstream services (their own process, behind the gateway)
+uvicorn gateway.mock_backends:app --port 8081
+
+# 2. Backend + gateway (second terminal, venv active, same exports)
 pip install -r requirements.txt
 uvicorn web.backend.app:app --port 8000
 
-# 2. Frontend (in a second terminal)
+# 3. Frontend (third terminal)
 cd frontend
 npm install
 npm run dev          # opens http://localhost:5173
@@ -107,6 +116,21 @@ admins have full access, developers can analyze and upload, and finance users
 can read the rule/sample catalogue and analyze bundled samples. Only admins can
 analyze the live gateway audit log. The browser session lasts until sign out or
 the gateway token expires.
+
+The production login screen supports OIDC SSO through the gateway's
+`/api/gateway/auth/sso/login` and `/api/gateway/auth/sso/callback` endpoints.
+Configure the issuer, confidential client, callback, frontend URL, and explicit
+provider-subject-to-local-user mapping on the backend; the dashboard detects
+configuration at runtime. See [OIDC SSO setup](docs/OIDC_SSO.md) for the environment
+variables, provider registration, and session behavior.
+
+The flow uses PKCE, browser-bound state, nonce and signed ID-token validation.
+The browser never handles an identity-provider client secret, and gateway tokens
+are delivered through a one-use cookie exchange rather than redirect URLs.
+The SSO button stays disabled until the backend is configured. Local demo
+accounts are shown automatically by the Vite development server. To include
+them in a non-development build, explicitly set
+`VITE_ENABLE_DEMO_LOGIN=true` (not recommended for production).
 
 ## Detection catalogue
 

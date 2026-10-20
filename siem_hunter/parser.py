@@ -82,7 +82,11 @@ def parse_syslog_line(line: str, source: str, assume_year: int) -> Event | None:
             fields.update({k: v for k, v in em.groupdict().items() if v})
             break
 
-    ts = _parse_syslog_timestamp(m.group("ts"), assume_year)
+    try:
+        ts = _parse_syslog_timestamp(m.group("ts"), assume_year)
+    except ValueError:
+        log.debug("syslog_timestamp_invalid", source=source, line=line[:120])
+        return None
     fields["hour"] = ts.hour           # derived field for time-of-day rules
     return Event(timestamp=ts, source=source, raw=line, fields=fields)
 
@@ -92,6 +96,10 @@ def parse_json_line(line: str, source: str) -> Event | None:
         obj = json.loads(line)
     except json.JSONDecodeError:
         log.debug("json_parse_miss", source=source, line=line[:120])
+        return None
+
+    if not isinstance(obj, dict):
+        log.debug("json_object_expected", source=source, line=line[:120])
         return None
 
     ts_raw = obj.pop("timestamp", None) or obj.pop("@timestamp", None)
@@ -104,6 +112,8 @@ def parse_json_line(line: str, source: str) -> Event | None:
         ts = datetime.now(timezone.utc)
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
+    else:
+        ts = ts.astimezone(timezone.utc)
 
     # Normalise gateway and cloud access log fields to standard SIEM schema
     if "client_ip" in obj and "src_ip" not in obj:
@@ -185,6 +195,8 @@ def parse_tabular_file(
 
         if ts.tzinfo is None:
             ts = ts.replace(tzinfo=timezone.utc)
+        else:
+            ts = ts.astimezone(timezone.utc)
 
         fields.setdefault("hour", ts.hour)
 

@@ -2,68 +2,41 @@
 
 from __future__ import annotations
 
-import hmac
-import secrets
 import time
+from typing import Optional
+
 import httpx
-from fastapi import Header, HTTPException, Request, Response, status
+from fastapi import HTTPException, Request, Response, status
 
 from .auth import IdentityContext, enforce_rbac
-from .config import REGISTERED_SERVICES
+from .config import INTERNAL_GATEWAY_TOKEN
 from .policy import enforce_pbac
 from .quota import enforce_quota
 from .sdwan import UpstreamEndpoint, sdwan_router
 from .telemetry import log_gateway_event
 from .vault import VaultError, vault
 
-# Shared secret between the gateway and its backends. Backends reject any
-# request without it, so they can't be reached by skipping the PEP.
-# (Random per process; in production this would be mTLS or a vaulted secret.)
-INTERNAL_GATEWAY_TOKEN = secrets.token_urlsafe(32)
-
-
-def require_internal_caller(request: Request, x_sase_internal: str | None = Header(None)) -> None:
-    """Dependency for backend routes: only accept traffic forwarded by the PEP."""
-    if not x_sase_internal or not hmac.compare_digest(x_sase_internal, INTERNAL_GATEWAY_TOKEN):
-        detail = "Direct access to backend services is not allowed. Go through /proxy/."
-        log_gateway_event(
-            method=request.method, path=request.url.path, target_service="backend-direct",
-            status_code=403, decision="DENY",
-            client_ip=request.client.host if request.client else "unknown",
-            reason="PEP bypass attempt - " + detail,
-        )
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+# Transport used for upstream calls. None = real network. Tests and the demo
+# script set an httpx.ASGITransport to run gateway.mock_backends in-process.
+UPSTREAM_TRANSPORT: Optional[httpx.AsyncBaseTransport] = None
 
 
 async def _dispatch_http(
     target_url: str,
     method: str,
     headers: dict[str, str],
-    params: dict[str, Any],
+    params: list[tuple[str, str]],
     body: bytes,
-    app: Any,
 ) -> httpx.Response:
-    """Dispatch HTTP request, using ASGITransport for internal mock routes."""
-    if "/mock-service" in target_url:
-        mock_path = "/mock-service" + target_url.split("/mock-service", 1)[1]
-        transport = httpx.ASGITransport(app=app)
-        async with httpx.AsyncClient(transport=transport, base_url="http://testserver", timeout=10.0) as client:
-            return await client.request(
-                method=method,
-                url=mock_path,
-                headers=headers,
-                params=params,
-                content=body,
-            )
-    else:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            return await client.request(
-                method=method,
-                url=target_url,
-                headers=headers,
-                params=params,
-                content=body,
-            )
+    """Dispatch the HTTP request to the selected upstream link."""
+    async with httpx.AsyncClient(transport=UPSTREAM_TRANSPORT, timeout=10.0) as client:
+        return await client.request(
+            method=method,
+            url=target_url,
+            headers=headers,
+            params=params,
+            content=body,
+        )
 
 
 async def forward_request(
@@ -111,7 +84,11 @@ async def forward_request(
 
     # Build downstream headers (Strip client secrets and any client-supplied
     # X-SASE-* headers so identity can't be spoofed, then inject verified ones)
-    excluded_headers = {"host", "authorization", "x-api-key", "content-length"}
+    excluded_headers = {
+        "host", "authorization", "x-api-key", "content-length", "cookie", "proxy-authorization",
+        # hop-by-hop headers (RFC 9110 7.6.1) are never forwarded
+        "connection", "keep-alive", "te", "trailer", "transfer-encoding", "upgrade",
+    }
     downstream_headers = {
         k: v
         for k, v in request.headers.items()
@@ -148,13 +125,11 @@ async def forward_request(
 
     # Read request body & params
     body = await request.body()
-    query_params = dict(request.query_params)
+    # Preserve repeated parameters such as ?tag=a&tag=b.
+    query_params = list(request.query_params.multi_items())
 
     # 4. SD-WAN Virtual Routing & Dynamic Failover
-    candidate_paths = sdwan_router.get_candidate_paths(service_name)
-    available_candidates = [
-        ep for ep in candidate_paths if ep.is_available(sdwan_router.recovery_timeout)
-    ]
+    available_candidates = sdwan_router.get_available_candidate_paths(service_name)
 
     if not available_candidates:
         latency = (time.perf_counter() - start_time) * 1000
@@ -177,7 +152,13 @@ async def forward_request(
     last_error = None
     attempted_routes: list[str] = []
 
+    # Retrying a state-changing request after a 5xx or transport failure can
+    # duplicate an operation that committed before the failure was observed.
+    # Automatic cross-route retries are therefore limited to safe methods.
+    retryable = method.upper() in {"GET", "HEAD", "OPTIONS"}
     for ep in available_candidates:
+        if not sdwan_router.reserve(ep):
+            continue
         attempted_routes.append(ep.name)
         target_url = f"{ep.url}/{path.lstrip('/')}" if path else ep.url
         t0 = time.perf_counter()
@@ -188,18 +169,19 @@ async def forward_request(
                 headers=downstream_headers,
                 params=query_params,
                 body=body,
-                app=request.app,
             )
             ep_latency = (time.perf_counter() - t0) * 1000
 
             # 5xx responses indicate downstream failure -> fail over to next link
-            if resp.status_code >= 500:
+            upstream_failed = resp.status_code >= 500
+            if upstream_failed:
                 sdwan_router.record_failure(ep, f"HTTP {resp.status_code}")
                 last_error = f"HTTP {resp.status_code} from route '{ep.name}'"
-                continue
+                if retryable:
+                    continue
+            else:
+                sdwan_router.record_success(ep, ep_latency)
 
-            # Link succeeded!
-            sdwan_router.record_success(ep, ep_latency)
             total_latency = (time.perf_counter() - start_time) * 1000
             is_failover = len(attempted_routes) > 1
             failover_note = (
@@ -214,13 +196,17 @@ async def forward_request(
                 path=f"/proxy/{service_name}/{path}",
                 target_service=service_name,
                 status_code=resp.status_code,
-                decision="ALLOW",
+                decision="DENY" if upstream_failed else "ALLOW",
                 client_ip=client_ip,
                 subject=identity.subject,
                 auth_type=identity.auth_type,
                 role=identity.role,
                 latency_ms=total_latency,
-                reason=f"Forwarded - PBAC rule '{rule.description}' (scope '{rule.required_scope}'){vault_note}{failover_note}",
+                reason=(
+                    f"Upstream failure returned without retrying unsafe method {method}"
+                    if upstream_failed
+                    else f"Forwarded - PBAC rule '{rule.description}' (scope '{rule.required_scope}'){vault_note}{failover_note}"
+                ),
             )
 
             response_headers = dict(resp.headers)
@@ -241,7 +227,9 @@ async def forward_request(
             ep_latency = (time.perf_counter() - t0) * 1000
             sdwan_router.record_failure(ep, str(exc))
             last_error = f"Connection error on route '{ep.name}': {exc}"
-            continue
+            if retryable:
+                continue
+            break
 
     # All candidate links failed
     total_latency = (time.perf_counter() - start_time) * 1000

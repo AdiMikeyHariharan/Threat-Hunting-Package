@@ -260,3 +260,17 @@ def test_sase_full_pipeline_run_and_reporting():
         saved = json.loads(tmp_report.read_text(encoding="utf-8"))
         assert isinstance(saved, list)
         assert len(saved) >= 2
+
+
+def test_private_ten_network_is_not_classified_as_external():
+    rules = load_rules(RULES_DIR)
+    engine = RuleEngine(rules)
+    event = Event(
+        timestamp=datetime.now(timezone.utc),
+        source="endpoint.csv",
+        raw="",
+        fields={"image": "svchost.exe", "destinationip": "10.10.10.5"},
+    )
+
+    detections = engine.evaluate(event)
+    assert "ENDPT-LMOV-0001" not in {d.rule_id for d in detections}

@@ -11,14 +11,14 @@ Modern enterprise architectures suffer from **credential sprawl**, fragmented cl
 ### Core Tenets:
 1. **Zero-Trust Network Access (ZTNA):** Never trust, always verify. Every request must authenticate and satisfy authorization before reaching any internal service.
 2. **Dual Identity Engine:**
-   - **Human Users:** Username + password login (PBKDF2-hashed) that issues a signed JWT bearer token with a server-assigned role. (This is a simplified OAuth2-style flow — not a full OAuth2 authorization server.)
+   - **Human Users:** Username + password login (PBKDF2-hashed) that issues a short-lived signed JWT access token with a server-assigned role, plus a rotating refresh token. (This is a simplified OAuth2-style flow — not a full OAuth2 authorization server.)
    - **Machine-to-Machine (M2M):** Authenticated via high-entropy Universal Keys stored solely as SHA-256 hashes (plaintext keys are never stored).
 3. **Multi-Layered Authorization:**
    - **RBAC (Role-Based Access Control):** Broad service-level boundary gating.
    - **PBAC (Permission-Based Access Control):** Fine-grained route and HTTP-method policy matching against explicit permission scopes.
    - **QBAC (Quota-Based Access Control):** Token-bucket burst-rate limiting and fixed-window volume caps to prevent over-usage and DoS.
 4. **Credential Isolation:** Client credentials are stripped at the ingress. The gateway overwrites any client-supplied `X-SASE-*` headers with verified identity headers, plus an internal gateway token that backends require, so backends never see client credentials.
-5. **Full Telemetry & SIEM Synergy:** Every decision (`ALLOW` or `DENY`) is recorded as structured JSONL audit logs, designed to be ingested by the repository's SIEM Threat Hunter (wiring planned for Phase 5).
+5. **Full Telemetry & SIEM Synergy:** Every decision (`ALLOW` or `DENY`) is recorded as structured JSONL audit logs, ingested by the repository's SIEM Threat Hunter (Phase 5).
 
 ---
 
@@ -64,7 +64,7 @@ Every proxied request follows a strict deterministic pipeline:
 
 ---
 
-## 3. Five-Phase Implementation Roadmap
+## 3. Implementation Roadmap
 
 | Phase | Milestone | Focus Area | Status |
 |---|---|---|:---:|
@@ -73,6 +73,7 @@ Every proxied request follows a strict deterministic pipeline:
 | **Phase 3** | **At-Rest Encrypted Credential Vault** | AES-256-GCM authenticated encryption with AAD binding, zero-leak credential injection, key rotation. | **COMPLETE** |
 | **Phase 4** | **SD-WAN Virtual Routing & Health-Aware Failover** | Multi-path upstream routing, latency tracking, circuit breaking, active health checks across virtual links. | **COMPLETE** |
 | **Phase 5** | **SIEM & Anomaly Hunter Integration** | Ingesting gateway telemetry into `siem_hunter`, detecting credential stuffing, password spraying, and PBAC privilege abuse. | **COMPLETE** |
+| **Phase 6** | **Production Hardening** | Shared Redis state, token revocation & refresh rotation, user management, YAML policy, trusted proxies, out-of-process backends, dependency updates. | **COMPLETE** |
 
 ---
 
@@ -86,17 +87,17 @@ Every proxied request follows a strict deterministic pipeline:
 
 ### 4.2 Delivered Components
 1. **User Directory & Password Hashing (`gateway/users.py`):**
-   - Implements PBKDF2-HMAC-SHA256 with 200,000 iterations and 16-byte random salts.
+   - Implements PBKDF2-HMAC-SHA256 with 600,000 iterations (OWASP 2023) and 16-byte random salts; older hashes are upgraded transparently at next login.
    - Server-assigned roles and scopes: clients can never elevate their own privileges during login.
    - Constant-time hash comparison (`hmac.compare_digest`) to prevent timing side-channel attacks.
 2. **Dual Auth Engine (`gateway/auth.py`):**
-   - **Humans:** Signed JWTs using `HS256`, 60-minute expiry, and claims validation.
+   - **Humans:** Signed JWTs using `HS256` with 15-minute expiry; `iss`, `aud`, `typ`, `jti`, `iat`, `exp` and `sub` are all required and validated (see Phase 6).
    - **Machines:** Universal keys formatted as `sase_<urlsafe_token>`. Only the SHA-256 hash is saved to `gateway/data/api_keys.json` with atomic disk writes.
    - **Admin Guard (`require_admin`):** Only authenticated accounts with role `admin` can register API keys or inspect audit telemetry.
 3. **Reverse Proxy & Anti-Bypass Guard (`gateway/proxy.py`):**
    - Strips client-provided `Authorization`, `X-API-Key`, and spoofed `X-SASE-*` headers.
    - Injects verified `X-SASE-Subject`, `X-SASE-Role`, `X-SASE-Auth-Type`, and an internal per-process token (`INTERNAL_GATEWAY_TOKEN`).
-   - Mock backend services reject direct incoming requests missing this token, preventing gateway bypass.
+   - Mock backend services (`gateway/mock_backends.py`, a separate process) reject direct incoming requests missing this token, preventing gateway bypass.
 4. **Structured Audit Telemetry (`gateway/telemetry.py`):**
    - Writes uniform JSON events to `logs/gateway_audit.jsonl` recording timestamps, HTTP methods, paths, subjects, roles, decisions, status codes, latencies, and denial reasons.
 
@@ -111,6 +112,7 @@ Every proxied request follows a strict deterministic pipeline:
 
 ### 5.2 Delivered Components
 1. **PBAC Policy Engine (`gateway/policy.py`):**
+   - Rules and quotas are loaded from `gateway/policy.yml` (see Phase 6).
    - Uses an ordered rule table per service matching HTTP methods (`GET`, `POST`, `PUT`, `PATCH`, `DELETE`, or `*`) and URI glob patterns (e.g. `invoices/*`).
    - Default-Deny: Any route or method not explicitly permitted is blocked with `403 Forbidden`.
    - Checks that the identity holds the required scope (`read`, `write`, `invoice`, `admin`).
@@ -321,36 +323,63 @@ read-only finance role. Gateway health and login remain reachable before sign-in
 
 ---
 
+## 8a. Phase 6: Production Hardening (Completed)
+
+Closes the limitations recorded in earlier phases and brings dependencies and token handling up to current practice.
+
+| Area | Delivered | Where |
+|---|---|---|
+| Shared state | Token buckets, quota windows, login lockout and revocation lists live in `gateway/state.py`: in-memory by default, Redis (atomic Lua scripts) when `SASE_REDIS_URL` is set, so replicas share counters. Wall-clock time so replicas agree. | `gateway/state.py`, `gateway/quota.py` |
+| Token revocation | Access tokens last 15 min and carry a `jti`. `POST /auth/logout` deny-lists the presented tokens; `POST /auth/revoke/{user}` (admin) and any password/role/disable change invalidate every token issued to that user. | `gateway/auth.py`, `gateway/main.py` |
+| Refresh tokens | `POST /auth/refresh` rotates the refresh token (8 h lifetime) and re-reads role/scopes from the directory. Replaying a rotated refresh token is treated as theft and revokes all of that user's sessions. Refresh tokens are rejected as access tokens and vice versa (`typ` claim). The dashboard refreshes in the background and revokes on sign-out. | `gateway/main.py`, `frontend/src/App.jsx` |
+| User management | Persistent user store (`SASE_USER_STORE`, file mode 0600). Admin API: `GET/POST /users`, `PATCH /users/{u}` (role, scopes, disabled), `PUT /users/{u}/password`, `DELETE /users/{u}`. Self-service `POST /auth/change-password`. Roles limited to `HUMAN_ROLE_SCOPES`; 12–256 char passwords not containing the username; the last active admin cannot be removed. | `gateway/users.py` |
+| Policy as config | PBAC rules and QBAC quotas in `gateway/policy.yml`. Validated on load (unknown services, methods, non-positive quotas are rejected); the gateway refuses to start on an invalid file. `GET /policy` and `POST /policy/reload` (admin); a bad reload keeps the running policy. | `gateway/policy.py` |
+| Lockout abuse | The per-username lock no longer applies on devices (IPs) where that user logged in successfully in the last 30 days, so an attacker elsewhere cannot lock the real user out. The attacker's own IP is still locked. | `gateway/quota.py` |
+| Client IP | `X-Forwarded-For` is honoured only when the direct peer is in `SASE_TRUSTED_PROXIES`, read right-to-left skipping trusted hops; otherwise ignored (no spoofing). Used by the gateway, audit log and SIEM API. | `gateway/auth.get_client_ip` |
+| Separate backends | Mock services run as their own app (`uvicorn gateway.mock_backends:app --port 8081`) reached over real HTTP; the internal token is shared through `SASE_INTERNAL_TOKEN`. Tests and the demo run them in-process via `proxy.UPSTREAM_TRANSPORT`. | `gateway/mock_backends.py`, `gateway/proxy.py` |
+| Machine keys | `GET /auth/api-keys` and `DELETE /auth/api-keys/{sha256}` (admin) so a leaked key can be revoked immediately. | `gateway/main.py` |
+| Hardening | CORS limited to `SASE_CORS_ORIGINS` (was `*`); `SASE_JWT_SECRET` must be ≥ 32 bytes (RFC 7518 §3.2); token responses send `Cache-Control: no-store`; login/password fields are length-capped before hashing; `Cookie`, `Proxy-Authorization` and hop-by-hop headers are stripped before forwarding; non-admins no longer see internal upstream URLs in `/auth/services`; audit query `limit` capped at 1000. | various |
+| Dependencies | Python 3.9 (end-of-life) replaced by 3.12; `pip-audit` clean. Frontend Vite 5 → 7.3 and `npm audit fix`: 0 known vulnerabilities (was 7). | `requirements*.txt`, `frontend/package.json` |
+
+---
+
 ## 9. Verification & Test Coverage Matrix
 
 The implementation is verified through unit tests and automated regression suites.
 
 | Test File | Test Case Count | Scenarios Verified |
 |---|:---:|---|
-| [`tests/test_gateway_phase1.py`](../tests/test_gateway_phase1.py) | 16 | Unauthenticated 401s, forged signatures, password verification, server-side role assignment, machine SHA-256 keys, admin-only barriers, backend bypass prevention, header spoofing sanitization. |
+| [`tests/test_gateway_phase1.py`](../tests/test_gateway_phase1.py) | 19 | Unauthenticated 401s, forged signatures, password verification, server-side role assignment, machine SHA-256 keys, admin-only barriers, backend bypass prevention, header spoofing sanitization. |
 | [`tests/test_gateway_phase2.py`](../tests/test_gateway_phase2.py) | 20 | Scope enforcement per method/path, default-deny rule fallback, token bucket burst enforcement, refill over time, quota exhaustion, 5-strike login lockout, audit coverage of denials. |
 | [`tests/test_gateway_phase3.py`](../tests/test_gateway_phase3.py) | 22 | AES-256-GCM encryption/decryption, AAD service binding, tamper resistance, zero-leak in logs/responses, admin API barriers, atomic key rotation. |
-| [`tests/test_gateway_phase4.py`](../tests/test_gateway_phase4.py) | 12 | Default primary link dispatch, dynamic failover on 5xx/connection errors, 3-strike circuit breaker trips, half-open probe recovery, latency EMA smoothing, all-paths-exhausted 503 handling, admin status/reset endpoints. |
-| [`tests/test_gateway_siem.py`](../tests/test_gateway_siem.py) | 8 | Gateway JSON parsing normalization, backend bypass critical signature, password spray threshold, single-account brute force, PBAC privilege probing, QBAC rate exhaustion, statistical volume anomalies, full pipeline JSON report generation. |
-| [`tests/test_rule_engine.py`](../tests/test_rule_engine.py) | 11 | Existing SIEM rule engine and threshold correlation suite. |
-| [`tests/test_anomaly.py`](../tests/test_anomaly.py) | 3 | Modified Z-score MAD anomaly calculations. |
+| [`tests/test_gateway_phase4.py`](../tests/test_gateway_phase4.py) | 15 | Default primary link dispatch, safe-method failover, unsafe-method replay prevention, query preservation, circuit breaking, single half-open probes, latency tracking, and admin status/reset endpoints. |
+| [`tests/test_gateway_siem.py`](../tests/test_gateway_siem.py) | 9 | Gateway JSON parsing normalization, backend bypass critical signature, password spray threshold, single-account brute force, PBAC privilege probing, QBAC rate exhaustion, private-IP filtering, statistical volume anomalies, and full pipeline reporting. |
+| [`tests/test_gateway_hardening.py`](../tests/test_gateway_hardening.py) | 42 | Phase 6: hardened claims, refresh rotation & reuse detection, logout/admin revocation (gateway and SIEM API), short-secret startup refusal, user CRUD & validation, last-admin guard, hash upgrade, API key revocation, YAML policy load/reload/rejection, known-device lockout, trusted-proxy XFF, header stripping, CORS, Redis store (fakeredis). |
+| [`tests/test_gateway_oidc.py`](../tests/test_gateway_oidc.py) | 49 | OIDC SSO: PKCE login, state/browser binding and replay, ID token signature/claim/nonce/azp/at_hash validation, clock-skew tolerance, one-time handoff, origin check, Memory and Redis stores. |
+| [`tests/test_filestore.py`](../tests/test_filestore.py) | 4 | Shared file stores across separate processes: no lost concurrent updates, cross-process reload, concurrent first-start seeding, API key revoked on another replica. |
+| [`tests/test_siem_api_auth.py`](../tests/test_siem_api_auth.py) | 5 | SIEM authentication, role permissions, admin-only live analysis, and upload-size enforcement. |
+| [`tests/test_rule_engine.py`](../tests/test_rule_engine.py) | 13 | Existing SIEM rule engine and threshold correlation suite. |
+| [`tests/test_parser.py`](../tests/test_parser.py) | 7 | Syslog and JSON parsing. |
 | [`tests/test_attack.py`](../tests/test_attack.py) | 4 | MITRE ATT&CK technique resolution. |
-| [`tests/test_parser.py`](../tests/test_parser.py) | 4 | Syslog and JSON parsing. |
-| **Total Test Suite** | **100** | **All passing (100% pass rate)** |
+| [`tests/test_anomaly.py`](../tests/test_anomaly.py) | 3 | Modified Z-score MAD anomaly calculations. |
+| [`tests/test_elastic.py`](../tests/test_elastic.py) | 1 | Elastic export. |
+| [`tests/test_pipeline.py`](../tests/test_pipeline.py) | 1 | End-to-end pipeline run. |
+| **Total Test Suite** | **214** | **Run with `python -m pytest tests/ -q` (Python 3.10+, `pip install -r requirements-dev.txt`).** |
 
 ---
 
 ## 9a. Known Limitations (current prototype)
 
+Resolved in Phase 6: in-memory single-process rate limits, hardcoded users, PBAC/quotas in code, per-username lockout abuse, `X-Forwarded-For` handling, in-process mock backends, and unrevocable JWTs.
+
 | Limitation | Impact | Planned fix |
 |---|---|---|
-| Rate-limit state is in-memory, single process | Counters reset on restart; split across replicas | Redis-backed limiter |
-| Users are a hardcoded demo list | No user management or password reset | User admin endpoints / external IdP |
-| PBAC rules and quotas live in code | Changes need a redeploy | Load from YAML / admin API |
-| Per-username login lockout | An attacker can lock a real user out for 60s | Progressive delays, CAPTCHA, or IP reputation |
-| Client IP is the direct TCP peer | Behind a load balancer, all clients share one IP | Trust `X-Forwarded-For` only from known proxies |
-| Mock backends run inside the gateway process | Not representative of real network hops | Separate services (Phase 4) |
-| JWTs can't be revoked before expiry | A stolen token works for up to 60 min | Short expiry + refresh tokens / denylist |
+| SD-WAN circuit state is per process; user/API-key/vault stores are files shared only by replicas on one host (flock + reload on change, `gateway/filestore.py`) | Replicas on different hosts don't share circuit health or directory changes (network filesystems with unreliable `flock` are not supported) | Move stores to a database; share circuit state via Redis |
+| `POST /policy/reload` applies to one replica | Other replicas keep the old policy until reloaded or restarted | Broadcast reloads (Redis pub/sub) or watch the file |
+| Gateway↔backend trust is a shared bearer secret | A leaked `SASE_INTERNAL_TOKEN` allows bypass | mTLS between gateway and services |
+| OIDC requires deployment configuration; MFA is provider-controlled | SSO needs a registered confidential client and explicit subject mappings; gateway sessions do not poll provider disablement | [Configure OIDC SSO](OIDC_SSO.md), enforce MFA at the provider, and revoke local sessions for immediate removal |
+| Known-device lockout exemption is keyed by IP | Users behind a shared NAT with an attacker can still be locked out; no CAPTCHA or progressive delay | Device cookies, CAPTCHA, IP reputation |
+| Refresh token is kept in browser `sessionStorage` | Readable by XSS on the dashboard origin (mitigated by rotation + reuse detection) | Backend-for-frontend with an HttpOnly cookie |
 
 ---
 
@@ -358,13 +387,22 @@ The implementation is verified through unit tests and automated regression suite
 
 | Variable | Default Value | Description |
 |---|---|---|
-| `SASE_JWT_SECRET` | Auto-generated per process (warning emitted) | Secret key used to sign and verify human JWT tokens. Must be set in production. |
+| `SASE_JWT_SECRET` | Auto-generated per process (warning emitted) | Secret key used to sign and verify human JWT tokens. Must be set in production; at least 32 bytes or the gateway refuses to start. |
+| `SASE_INTERNAL_TOKEN` | Auto-generated per process (warning emitted) | Shared secret the gateway sends to backends. Set the same value for the gateway and `gateway.mock_backends` when they run separately. |
+| `SASE_BACKEND_URL` | `http://127.0.0.1:8081` | Base URL of the mock backend service. |
+| `SASE_REDIS_URL` | Empty (in-memory) | Redis URL for shared rate-limit, lockout and revocation state, e.g. `redis://localhost:6379/0`. |
+| `SASE_USER_STORE` | `gateway/data/users.json` | Persistent user directory (PBKDF2 hashes only). Demo users are seeded only when it does not exist. |
+| `SASE_POLICY_FILE` | `gateway/policy.yml` | PBAC rules and QBAC quotas. |
+| `SASE_TRUSTED_PROXIES` | Empty | Comma-separated IPs/CIDRs of load balancers whose `X-Forwarded-For` is trusted. |
+| `SASE_CORS_ORIGINS` | `http://localhost:5173,http://127.0.0.1:5173` | Browser origins allowed to call the gateway and SIEM API. |
+| `SASE_PBKDF2_ITERATIONS` | `600000` | PBKDF2 work factor for new hashes (tests lower it for speed). |
+| `SASE_OIDC_*` | Unset (SSO disabled) | Enterprise SSO: `ISSUER`, `CLIENT_ID`, `CLIENT_SECRET`, `REDIRECT_URI`, `FRONTEND_URL`, `SUBJECT_MAP` (+ optional `TOKEN_AUTH_METHOD`, `ALLOW_LOCAL_HTTP`). See [OIDC_SSO.md](OIDC_SSO.md). |
 | `SASE_VAULT_KEY` | Auto-generated into `gateway/data/vault.key` | Base64-encoded 32-byte master key for AES-256-GCM vault encryption. |
 | `SASE_VAULT_OLD_KEYS` | Empty | Comma-separated list of previous base64 keys accepted for decryption during rotation. |
 | `SASE_VAULT_STORE` | `gateway/data/vault.json` | Path to persistent encrypted JSON store of downstream secrets. |
 | `SASE_AUDIT_LOG` | `logs/gateway_audit.jsonl` | Absolute or relative file path for structured audit logging. |
 | `SASE_API_KEY_STORE` | `gateway/data/api_keys.json` | Path to persistent store of hashed machine universal keys. |
-| `SASE_PW_ALICE` | `alice-dev-pass` | Password for demo user `alice` (Role: `developer`). |
+| `SASE_PW_ALICE` | `alice-dev-pass` | Password for demo user `alice` (Role: `developer`), used when seeding. |
 | `SASE_PW_BOB` | `bob-finance-pass` | Password for demo user `bob` (Role: `finance`). |
 | `SASE_PW_CHARLIE` | `charlie-admin-pass` | Password for demo user `charlie` (Role: `admin`). |
 
@@ -373,18 +411,22 @@ The implementation is verified through unit tests and automated regression suite
 ## 11. Quick Start Commands
 
 ```bash
-# 1. Activate project environment
-source .venv/bin/activate
+# 1. Create the environment (Python 3.10+; 3.12 recommended)
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
 
-# 2. Run the end-to-end interactive demo script (Phases 1, 2, 3, 4 & 5)
-python scripts/test_gateway_demo.py
+# 2. Run the end-to-end interactive demo script (Phases 1-5, in-process backends)
+python scripts/gateway_demo.py
 
 # 3. Run the automated test suite
 python -m pytest tests/ -q
 
-# 4. Start the SASE Gateway service live
-export SASE_JWT_SECRET="production-sample-secret-key-at-least-32-bytes"
-uvicorn gateway.main:app --port 8080 --reload
+# 4. Start the backends and the gateway as separate services
+export SASE_JWT_SECRET="$(python -c 'import secrets;print(secrets.token_urlsafe(48))')"
+export SASE_INTERNAL_TOKEN="$(python -c 'import secrets;print(secrets.token_urlsafe(32))')"
+# optional: export SASE_REDIS_URL=redis://localhost:6379/0
+uvicorn gateway.mock_backends:app --port 8081 &
+uvicorn gateway.main:app --port 8080
 ```
 Interactive OpenAPI/Swagger documentation is available at:
 `http://localhost:8080/docs`

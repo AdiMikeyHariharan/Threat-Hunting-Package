@@ -9,6 +9,11 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": "http://localhost:8000",
+      // Direct (non-PEP) access to the mock backends, used by the bypass demo.
+      "/backend-direct": {
+        target: "http://localhost:8081",
+        rewrite: (path) => path.replace(/^\/backend-direct/, ""),
+      },
     },
   },
 });

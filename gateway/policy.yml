@@ -1,0 +1,32 @@
+# Micro-SASE policy: PBAC permission rules and QBAC quotas.
+#
+# Loaded at gateway startup; POST /policy/reload (admin) applies edits without
+# a redeploy. An invalid file is rejected and the running policy is kept.
+
+# Ordered per-service rules. The first rule whose methods + path glob match
+# decides the required scope; no match = default deny. Paths are relative to
+# /proxy/{service}/.
+services:
+  billing:
+    - {methods: [GET, HEAD], path: "invoices", scope: read, description: List invoices}
+    - {methods: [GET, HEAD], path: "invoices/*", scope: read, description: Read one invoice}
+    - {methods: [POST], path: "invoices", scope: invoice, description: Create invoice}
+    - {methods: [POST, PUT, PATCH], path: "invoices/*", scope: invoice, description: Modify invoice}
+    - {methods: [DELETE], path: "invoices/*", scope: admin, description: Delete invoice}
+  inventory:
+    - {methods: [GET, HEAD], path: "*", scope: read, description: Read inventory}
+    - {methods: [POST, PUT, PATCH], path: "*", scope: write, description: Modify inventory}
+    - {methods: [DELETE], path: "*", scope: admin, description: Delete inventory items}
+  admin-panel:
+    - {methods: ["*"], path: "*", scope: admin, description: All admin operations}
+
+# Per-role limits. Machines get more headroom than humans; unknown roles get `default`.
+quotas:
+  default:           {burst: 10,  refill_per_sec: 1.0,  window_limit: 200,   window_seconds: 3600}
+  roles:
+    admin:             {burst: 50,  refill_per_sec: 10.0, window_limit: 5000,  window_seconds: 3600}
+    developer:         {burst: 20,  refill_per_sec: 5.0,  window_limit: 1000,  window_seconds: 3600}
+    finance:           {burst: 20,  refill_per_sec: 5.0,  window_limit: 1000,  window_seconds: 3600}
+    operator:          {burst: 20,  refill_per_sec: 5.0,  window_limit: 1000,  window_seconds: 3600}
+    billing-service:   {burst: 100, refill_per_sec: 20.0, window_limit: 20000, window_seconds: 3600}
+    inventory-service: {burst: 100, refill_per_sec: 20.0, window_limit: 20000, window_seconds: 3600}

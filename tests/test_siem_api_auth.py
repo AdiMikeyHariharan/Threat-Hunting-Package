@@ -3,7 +3,9 @@
 from fastapi.testclient import TestClient
 
 from gateway.users import DEMO_USERS
-from web.backend.app import app
+from web.backend import app as backend_module
+
+app = backend_module.app
 
 client = TestClient(app)
 
@@ -50,3 +52,13 @@ def test_analyst_can_analyze_and_upload_but_viewer_cannot_upload():
 def test_live_gateway_analysis_is_admin_only():
     assert client.get("/api/analyze-live-gateway", headers=_auth("alice")).status_code == 403
     assert client.get("/api/analyze-live-gateway", headers=_auth("charlie")).status_code == 200
+
+
+def test_upload_size_limit_is_enforced(monkeypatch):
+    monkeypatch.setattr(backend_module, "MAX_UPLOAD_BYTES", 4)
+    response = client.post(
+        "/api/analyze",
+        files={"file": ("too-large.log", b"12345")},
+        headers=_auth("alice"),
+    )
+    assert response.status_code == 413

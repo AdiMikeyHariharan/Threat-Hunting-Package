@@ -8,7 +8,7 @@ type: detection
 detection:
   selection:
     image|contains: "svchost.exe"
-    destinationip|re: "^(?!10\\.0\\.0\\.|10\\.10\\.10\\.0|10\\.10\\.20\\.0|192\\.168\\.|172\\.(1[6-9]|2[0-9]|3[01])\\.).*"
+    destinationip|re: "^(?!(?:10\\.|192\\.168\\.|172\\.(?:1[6-9]|2[0-9]|3[01])\\.)).*"
   condition: selection
 mitre:
   - T1021

@@ -46,6 +46,7 @@ class UpstreamEndpoint:
     latency_ema_ms: float = 0.0
     total_requests: int = 0
     total_failures: int = 0
+    half_open_probe_in_flight: bool = False
 
     def is_available(self, recovery_timeout: float = 30.0) -> bool:
         """Check if this endpoint can accept traffic according to circuit rules."""
@@ -61,7 +62,7 @@ class UpstreamEndpoint:
                 return True
             return False
         if self.circuit_state == "HALF_OPEN":
-            return True
+            return not self.half_open_probe_in_flight
         return False
 
 
@@ -77,7 +78,9 @@ class SDWANRouter:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.half_open_successes = half_open_successes
-        self._lock = threading.Lock()
+        # get_candidate_paths() may refresh the registry while already holding
+        # this lock, so it must support same-thread re-entry.
+        self._lock = threading.RLock()
         self._endpoints: dict[str, list[UpstreamEndpoint]] = {}
         self._load_registry()
 
@@ -137,6 +140,31 @@ class SDWANRouter:
             available.sort(key=lambda x: (x.priority, x.latency_ema_ms))
             return available + tripped
 
+    def get_available_candidate_paths(self, service_name: str) -> list[UpstreamEndpoint]:
+        """Return currently available paths without reserving HALF_OPEN probes."""
+        with self._lock:
+            endpoints = self._endpoints.get(service_name, [])
+            available = [
+                ep for ep in endpoints if ep.is_available(self.recovery_timeout)
+            ]
+            available.sort(key=lambda x: (x.priority, x.latency_ema_ms))
+            return available
+
+    def reserve(self, endpoint: UpstreamEndpoint) -> bool:
+        """Atomically reserve an endpoint, allowing one HALF_OPEN probe only."""
+        with self._lock:
+            if endpoint.circuit_state == "CLOSED":
+                return True
+            if endpoint.circuit_state == "OPEN":
+                if not endpoint.is_available(self.recovery_timeout):
+                    return False
+            if endpoint.circuit_state == "HALF_OPEN":
+                if endpoint.half_open_probe_in_flight:
+                    return False
+                endpoint.half_open_probe_in_flight = True
+                return True
+            return False
+
     def record_success(self, endpoint: UpstreamEndpoint, latency_ms: float) -> None:
         """Record successful transaction, updating latency EMA and healing circuits."""
         with self._lock:
@@ -149,6 +177,7 @@ class SDWANRouter:
                 endpoint.latency_ema_ms = 0.7 * endpoint.latency_ema_ms + 0.3 * latency_ms
 
             if endpoint.circuit_state == "HALF_OPEN":
+                endpoint.half_open_probe_in_flight = False
                 endpoint.success_count += 1
                 if endpoint.success_count >= self.half_open_successes:
                     endpoint.circuit_state = "CLOSED"
@@ -165,6 +194,7 @@ class SDWANRouter:
             endpoint.total_failures += 1
             endpoint.failure_count += 1
             endpoint.last_failure_time = now
+            endpoint.half_open_probe_in_flight = False
 
             if endpoint.circuit_state in ("CLOSED", "HALF_OPEN"):
                 if (
@@ -184,6 +214,7 @@ class SDWANRouter:
                     ep.success_count = 0
                     ep.last_failure_time = 0.0
                     ep.latency_ema_ms = 0.0
+                    ep.half_open_probe_in_flight = False
 
     def status(self) -> dict[str, Any]:
         """Return operational health status and metrics of all virtual links."""

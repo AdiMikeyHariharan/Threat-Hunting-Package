@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8.0
+fakeredis[lua]>=2.26
+pip-audit>=2.7

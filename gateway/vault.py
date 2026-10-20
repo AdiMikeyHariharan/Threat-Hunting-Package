@@ -33,7 +33,6 @@ import hashlib
 import json
 import os
 import re
-import threading
 import warnings
 from datetime import datetime, timezone
 from pathlib import Path
@@ -42,6 +41,7 @@ from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from .config import ROOT_DIR
+from .filestore import JsonFileStore
 
 VAULT_STORE = Path(os.environ.get("SASE_VAULT_STORE", ROOT_DIR / "gateway" / "data" / "vault.json"))
 _DEV_KEY_FILE = ROOT_DIR / "gateway" / "data" / "vault.key"
@@ -111,22 +111,24 @@ def validate_header_name(header: str) -> str:
 class CredentialVault:
     def __init__(self, store: Path = VAULT_STORE) -> None:
         self.store = store
-        self._lock = threading.Lock()
         self.current_key_id, self._keys = _load_keys()
         self._records: dict[str, dict] = {}
-        if store.exists():
-            try:
-                self._records = json.loads(store.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError) as e:
-                raise VaultError(f"Cannot read vault store {store}: {e}") from e
+        # Shared by every gateway process on the host; edits elsewhere are picked up.
+        self._file = JsonFileStore(store, self._load)
+        self._sync()
 
     # -- persistence ---------------------------------------------------------
+    def _load(self, data: dict) -> None:
+        self._records = data
+
+    def _sync(self) -> None:
+        try:
+            self._file.sync()
+        except (json.JSONDecodeError, OSError) as e:
+            raise VaultError(f"Cannot read vault store {self.store}: {e}") from e
+
     def _save(self) -> None:
-        self.store.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.store.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self._records, indent=2), encoding="utf-8")
-        os.chmod(tmp, 0o600)
-        tmp.replace(self.store)
+        self._file.write(self._records)
 
     # -- crypto --------------------------------------------------------------
     def _encrypt(self, service: str, header: str, plaintext: str) -> dict:
@@ -163,7 +165,7 @@ class CredentialVault:
         if not secret:
             raise VaultError("Secret must not be empty")
         now = datetime.now(timezone.utc).isoformat()
-        with self._lock:
+        with self._file.transaction():
             prev = self._records.get(service)
             self._records[service] = {
                 "header": header,
@@ -178,7 +180,7 @@ class CredentialVault:
             return self.describe(service)
 
     def delete(self, service: str) -> bool:
-        with self._lock:
+        with self._file.transaction():
             if service not in self._records:
                 return False
             del self._records[service]
@@ -186,10 +188,12 @@ class CredentialVault:
             return True
 
     def has(self, service: str) -> bool:
+        self._sync()
         return service in self._records
 
     def header_for(self, service: str) -> tuple[str, str] | None:
         """Decrypt in memory and return (header_name, header_value), or None."""
+        self._sync()
         rec = self._records.get(service)
         if rec is None:
             return None
@@ -210,11 +214,12 @@ class CredentialVault:
         }
 
     def list(self) -> list[dict]:
+        self._sync()
         return [self.describe(s) for s in sorted(self._records)]
 
     def rotate(self) -> dict:
         """Re-encrypt every record under the current key (all-or-nothing)."""
-        with self._lock:
+        with self._file.transaction():
             updates = {
                 service: self._encrypt(service, rec["header"], self._decrypt(service, rec))
                 for service, rec in self._records.items()

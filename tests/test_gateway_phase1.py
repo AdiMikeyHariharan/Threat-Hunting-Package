@@ -9,10 +9,13 @@ from pathlib import Path
 import jwt
 from fastapi.testclient import TestClient
 
+from gateway import mock_backends
+from gateway.auth import register_api_key
 from gateway.main import app  # noqa: E402
 from gateway.users import DEMO_USERS  # noqa: E402
 
 client = TestClient(app)
+backend = TestClient(mock_backends.app)
 
 
 def _login(username: str) -> str:
@@ -61,7 +64,11 @@ def test_client_cannot_choose_own_role():
 
 
 def test_forged_jwt_rejected():
-    forged = jwt.encode({"sub": "alice", "role": "admin"}, "attacker-secret", algorithm="HS256")
+    forged = jwt.encode(
+        {"sub": "alice", "role": "admin"},
+        "attacker-secret-that-is-at-least-32-bytes",
+        algorithm="HS256",
+    )
     resp = client.get("/proxy/admin-panel/config", headers=_auth(forged))
     assert resp.status_code == 401
 
@@ -121,6 +128,29 @@ def test_admin_issues_api_key_and_machine_uses_it():
     assert resp.json()["key_sha256"] in store
 
 
+def test_admin_cannot_issue_human_admin_machine_key():
+    resp = client.post(
+        "/auth/register-api-key",
+        json={"service_id": "permanent-admin", "role": "admin", "scopes": ["admin"]},
+        headers=_auth(_login("charlie")),
+    )
+    assert resp.status_code == 400
+
+
+def test_deprecated_admin_api_key_cannot_call_admin_endpoints():
+    raw_key = "sase_legacy_admin_test_key"
+    register_api_key(raw_key, "legacy-admin", "admin", ["admin"])
+    resp = client.get("/telemetry/audit", headers={"X-API-Key": raw_key})
+    assert resp.status_code == 401
+
+
+def test_legacy_machine_key_with_excess_scopes_is_rejected():
+    raw_key = "sase_legacy_overprivileged_billing_key"
+    register_api_key(raw_key, "legacy-billing", "billing-service", ["read", "admin"])
+    resp = client.get("/proxy/billing/invoices", headers={"X-API-Key": raw_key})
+    assert resp.status_code == 401
+
+
 def test_audit_log_admin_only():
     assert client.get("/telemetry/audit").status_code == 401
     assert client.get("/telemetry/audit", headers=_auth(_login("alice"))).status_code == 403
@@ -132,7 +162,7 @@ def test_audit_log_admin_only():
 # --- Bypass / spoofing -------------------------------------------------------
 
 def test_backend_not_reachable_directly():
-    resp = client.get("/mock-service/admin-panel/config")
+    resp = backend.get("/mock-service/admin-panel/config")
     assert resp.status_code == 403
 
 

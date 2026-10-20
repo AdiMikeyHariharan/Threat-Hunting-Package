@@ -1,9 +1,11 @@
+# Requires Python >= 3.10 (3.12 recommended). Dev/test extras: requirements-dev.txt
 structlog>=24.1.0
 PyYAML>=6.0
 
 # CSV / Excel parsing
 pandas>=2.0
 openpyxl>=3.1
+xlrd>=2.0.1
 
 # Web dashboard backend (optional — only needed to run the React UI)
 fastapi>=0.110
@@ -12,3 +14,6 @@ python-multipart>=0.0.9
 httpx>=0.28.0
 pyjwt>=2.8.0
 cryptography>=42.0
+
+# Optional: shared rate-limit / revocation state across gateway replicas (SASE_REDIS_URL)
+redis>=5.0

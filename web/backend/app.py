@@ -16,6 +16,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.concurrency import run_in_threadpool
 
 # Make the project root importable when launched as `web.backend.app`.
 ROOT = Path(__file__).resolve().parents[2]
@@ -25,23 +26,25 @@ if str(ROOT) not in sys.path:
 from siem_hunter.logging_config import configure_logging, get_logger  # noqa: E402
 from siem_hunter.pipeline import Pipeline  # noqa: E402
 from gateway.main import app as gateway_app  # noqa: E402
-from gateway.config import GATEWAY_AUDIT_LOG  # noqa: E402
-from gateway.auth import IdentityContext, verify_jwt_token  # noqa: E402
+from gateway.config import CORS_ORIGINS, GATEWAY_AUDIT_LOG  # noqa: E402
+from gateway.auth import IdentityContext, get_client_ip, verify_jwt_token  # noqa: E402
 
 configure_logging(log_dir=str(ROOT / "logs"), level="INFO", console=True)
 log = get_logger("web.backend")
 
 RULES_DIR = ROOT / "rules"
 SAMPLE_DIR = ROOT / "sample_data"
+MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+UPLOAD_CHUNK_BYTES = 1024 * 1024
 
 app = FastAPI(title="siem-threat-hunter API", version="1.0.0")
 
 # The Vite dev server proxies /api, but allow direct cross-origin calls too.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Mount the Micro-SASE Gateway under /api/gateway
@@ -71,7 +74,7 @@ def require_siem_access(permission: str):
         return IdentityContext(
             subject=claims.get("sub", "anonymous"), auth_type="jwt", role=role,
             scopes=claims.get("scopes", []),
-            client_ip=request.client.host if request.client else "unknown",
+            client_ip=get_client_ip(request),
             token_claims=claims,
         )
     return dependency
@@ -156,35 +159,36 @@ def analyze_sample(source: str = "auth.log", _identity: IdentityContext = Depend
 
 @app.post("/api/analyze")
 async def analyze_upload(file: UploadFile = File(...), _identity: IdentityContext = Depends(require_siem_access("write"))) -> dict:
-    """Analyse an uploaded log file (syslog, JSON lines, CSV, or Excel).
-
-    CSV and Excel files are written in binary mode to preserve their structure;
-    text-based formats (syslog / JSON) are decoded as UTF-8.
-    """
+    """Analyse a bounded uploaded log file (syslog, JSON lines, CSV, or Excel)."""
     filename = file.filename or "upload"
     fmt = _guess_format(filename)
-    content_bytes = await file.read()
-
-    # Never use a client supplied filename as a filesystem path.
+    # Never use a client supplied filename as a filesystem path. Stream to a
+    # bounded temporary file so a request cannot allocate an unbounded bytes
+    # object before parsing starts.
     upload_dir = ROOT / "logs"
     upload_dir.mkdir(parents=True, exist_ok=True)
     suffix = Path(filename).suffix[:16]
-    with tempfile.NamedTemporaryFile(prefix="_siem_upload_", suffix=suffix, dir=upload_dir, delete=False) as handle:
-        tmp = Path(handle.name)
-
-    # Excel files are binary; everything else is text.
-    if fmt in ("xlsx", "xls"):
-        tmp.write_bytes(content_bytes)
-    else:
-        tmp.write_text(
-            content_bytes.decode("utf-8", errors="replace"), encoding="utf-8"
-        )
-
+    tmp: Path | None = None
     try:
+        total = 0
+        with tempfile.NamedTemporaryFile(
+            prefix="_siem_upload_", suffix=suffix, dir=upload_dir, delete=False
+        ) as handle:
+            tmp = Path(handle.name)
+            while chunk := await file.read(UPLOAD_CHUNK_BYTES):
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"Upload exceeds the {MAX_UPLOAD_BYTES // (1024 * 1024)} MiB limit.",
+                    )
+                handle.write(chunk)
+
         pipeline = Pipeline(rules_dir=RULES_DIR)
-        result = pipeline.analyze(tmp, fmt=fmt)
+        result = await run_in_threadpool(pipeline.analyze, tmp, fmt)
     finally:
-        tmp.unlink(missing_ok=True)
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
 
     result["source"] = filename
     log.info("api_analyze_upload", source=filename,

@@ -65,12 +65,12 @@ class ElasticClient:
         """Ping ES and create indices. Returns False (and disables) on failure."""
         try:
             self._request("GET", "/")
+            self._ensure_index(DETECTIONS_INDEX, _DETECTION_MAPPING)
+            self._ensure_index(EVENTS_INDEX, _EVENT_MAPPING)
         except (urllib.error.URLError, OSError) as exc:
             log.warning("elastic_unreachable", url=self.url, error=str(exc))
             self.enabled = False
             return False
-        self._ensure_index(DETECTIONS_INDEX, _DETECTION_MAPPING)
-        self._ensure_index(EVENTS_INDEX, _EVENT_MAPPING)
         self.enabled = True
         log.info("elastic_connected", url=self.url)
         return True
@@ -114,6 +114,7 @@ class ElasticClient:
         except urllib.error.HTTPError as exc:
             if exc.code != 400:                      # 400 = already exists
                 log.error("elastic_index_error", index=index, code=exc.code)
+                raise
 
     def _request(self, method: str, path: str, body: dict | None = None):
         data = json.dumps(body).encode() if body is not None else None

@@ -43,6 +43,40 @@ export async function analyzeUpload(file, token) {
 
 // --- Micro-SASE IAM & Gateway API Client ---
 
+export async function getSsoConfiguration() {
+  const res = await fetch("/api/gateway/auth/sso/config", { cache: "no-store" });
+  if (!res.ok) throw new Error("Unable to check SSO configuration.");
+  return res.json();
+}
+
+export function beginSsoLogin() {
+  const loginUrl = import.meta.env.VITE_SSO_LOGIN_URL?.trim() || "/api/gateway/auth/sso/login";
+  const target = new URL(loginUrl, window.location.origin);
+  if (target.origin !== window.location.origin || target.username || target.password) {
+    throw new Error("The SSO endpoint must be on the dashboard's origin.");
+  }
+  window.location.assign(target.toString());
+}
+
+// Share an in-flight exchange across React StrictMode's effect setup/cleanup.
+// The handoff cookie can only be consumed once, including across gateway replicas.
+let ssoExchange = null;
+export function completeSsoLogin() {
+  if (!ssoExchange) {
+    ssoExchange = fetch("/api/gateway/auth/sso/session", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "SSO sign-in failed. Please try again.");
+      return data;
+    }).finally(() => { ssoExchange = null; });
+  }
+  return ssoExchange;
+}
+
 export async function loginGateway(username, password) {
   const res = await fetch("/api/gateway/auth/token", {
     method: "POST",
@@ -54,6 +88,27 @@ export async function loginGateway(username, password) {
     throw new Error(data.detail || `Login failed (HTTP ${res.status})`);
   }
   return data;
+}
+
+// Access tokens are short-lived; the refresh token is rotated on every use.
+export async function refreshGateway(refreshToken) {
+  const res = await fetch("/api/gateway/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || `Session refresh failed (HTTP ${res.status})`);
+  return data;
+}
+
+// Revokes the tokens server-side so they can't be replayed after sign-out.
+export async function logoutGateway(accessToken, refreshToken) {
+  await fetch("/api/gateway/auth/logout", {
+    method: "POST",
+    headers: authHeaders(accessToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  }).catch(() => {});
 }
 
 export async function callGatewayProxy(service, path, token, method = "GET", body = null) {
@@ -87,7 +142,8 @@ export async function callGatewayProxy(service, path, token, method = "GET", bod
 
 export async function callDirectBackendBypass(service, path = "") {
   const cleanPath = path ? `/${path.replace(/^\//, "")}` : "";
-  const res = await fetch(`/api/gateway/mock-service/${service}${cleanPath}`);
+  // Backends run as their own service; Vite proxies /backend-direct to it.
+  const res = await fetch(`/backend-direct/mock-service/${service}${cleanPath}`);
   const data = await res.json().catch(() => ({}));
   return {
     status: res.status,

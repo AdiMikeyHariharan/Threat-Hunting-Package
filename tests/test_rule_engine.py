@@ -59,6 +59,26 @@ def test_invalid_condition_rejected_at_load(tmp_path):
     assert load_rules(tmp_path) == []  # bad rule dropped, not crashed
 
 
+def test_malformed_conditions_are_rejected_without_crashing(tmp_path):
+    for index, condition in enumerate(("", "(selection", "selection !!!")):
+        (tmp_path / f"bad-{index}.yml").write_text(
+            "id: BAD-{0}\ntitle: bad\nlevel: low\ndetection:\n"
+            "  selection:\n    program: sshd\n  condition: {1!r}\n".format(
+                index, condition
+            )
+        )
+    assert load_rules(tmp_path) == []
+
+
+def test_invalid_regex_is_rejected_at_load_time(tmp_path):
+    (tmp_path / "bad-regex.yml").write_text(
+        "id: BAD-REGEX\ntitle: bad\nlevel: low\ndetection:\n"
+        "  selection:\n    message|re: '[unterminated'\n"
+        "  condition: selection\n"
+    )
+    assert load_rules(tmp_path) == []
+
+
 # ----- threshold correlation ----------------------------------------------- #
 def _failed(ip, offset_s):
     ts = datetime(2026, 3, 10, 13, 0, tzinfo=timezone.utc) + timedelta(seconds=offset_s)

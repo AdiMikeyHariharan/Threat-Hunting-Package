@@ -1,6 +1,7 @@
 """Phase 4 tests: SD-WAN virtual multi-path routing, circuit breakers, and automatic failover."""
 
 import time
+import httpx
 from fastapi.testclient import TestClient
 
 from gateway import proxy, sdwan
@@ -44,12 +45,12 @@ def test_automatic_failover_when_primary_errors():
     """When primary link returns HTTP 500+, automatically fail over to secondary link."""
     original_dispatch = proxy._dispatch_http
 
-    async def mock_dispatch(target_url, method, headers, params, body, app):
+    async def mock_dispatch(target_url, method, headers, params, body):
         # Force primary route to fail with 500 Internal Server Error
         if "mock-service/billing" in target_url and "billing-backup" not in target_url:
             import httpx
             return httpx.Response(status_code=500, content=b'{"error": "primary down"}')
-        return await original_dispatch(target_url, method, headers, params, body, app)
+        return await original_dispatch(target_url, method, headers, params, body)
 
     proxy._dispatch_http = mock_dispatch
     try:
@@ -68,11 +69,11 @@ def test_automatic_failover_on_connection_exception():
     """When primary link raises connection error, automatically fail over to secondary."""
     original_dispatch = proxy._dispatch_http
 
-    async def mock_dispatch(target_url, method, headers, params, body, app):
+    async def mock_dispatch(target_url, method, headers, params, body):
         if "mock-service/inventory" in target_url and "inventory-backup" not in target_url:
             import httpx
             raise httpx.ConnectError("Connection refused on primary link")
-        return await original_dispatch(target_url, method, headers, params, body, app)
+        return await original_dispatch(target_url, method, headers, params, body)
 
     proxy._dispatch_http = mock_dispatch
     try:
@@ -82,6 +83,42 @@ def test_automatic_failover_on_connection_exception():
         assert r.headers["X-SDWAN-Region"] == "eu-central"
         assert r.headers["X-SDWAN-Failover"] == "true"
         assert r.json()["downstream_service"] == "Inventory Service (Secondary Backup Route)"
+    finally:
+        proxy._dispatch_http = original_dispatch
+
+
+def test_state_changing_request_is_not_replayed_on_failure():
+    attempts = []
+    original_dispatch = proxy._dispatch_http
+
+    async def failing_dispatch(target_url, method, headers, params, body):
+        attempts.append(target_url)
+        return httpx.Response(status_code=500, content=b'{"error":"committed then failed"}')
+
+    proxy._dispatch_http = failing_dispatch
+    try:
+        r = client.post("/proxy/billing/invoices", headers=_login("bob"))
+        assert r.status_code == 500
+        assert len(attempts) == 1
+    finally:
+        proxy._dispatch_http = original_dispatch
+
+
+def test_proxy_preserves_repeated_query_parameters():
+    seen = {}
+    original_dispatch = proxy._dispatch_http
+
+    async def capture_dispatch(target_url, method, headers, params, body):
+        seen["params"] = params
+        return httpx.Response(status_code=200, content=b"{}")
+
+    proxy._dispatch_http = capture_dispatch
+    try:
+        r = client.get(
+            "/proxy/inventory/items?tag=a&tag=b", headers=_login("alice")
+        )
+        assert r.status_code == 200
+        assert seen["params"] == [("tag", "a"), ("tag", "b")]
     finally:
         proxy._dispatch_http = original_dispatch
 
@@ -160,11 +197,25 @@ def test_half_open_single_failure_trips_back_to_open(monkeypatch):
     assert primary.circuit_state == "OPEN"
 
 
+def test_half_open_allows_only_one_reserved_probe(monkeypatch):
+    primary = next(
+        ep for ep in sdwan_router.get_candidate_paths("billing") if ep.name == "primary"
+    )
+    primary.circuit_state = "OPEN"
+    primary.last_failure_time = 1000.0
+    monkeypatch.setattr(sdwan, "_now", lambda: 1031.0)
+
+    candidates = sdwan_router.get_available_candidate_paths("billing")
+    assert primary in candidates
+    assert sdwan_router.reserve(primary) is True
+    assert sdwan_router.reserve(primary) is False
+
+
 def test_all_upstream_routes_failed_returns_502():
     """If all configured virtual links fail, returns 502 Bad Gateway."""
     original_dispatch = proxy._dispatch_http
 
-    async def mock_dispatch(target_url, method, headers, params, body, app):
+    async def mock_dispatch(target_url, method, headers, params, body):
         import httpx
         raise httpx.ConnectError("Total network partition")
 
