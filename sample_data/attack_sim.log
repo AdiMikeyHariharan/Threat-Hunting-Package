@@ -1,19 +1,175 @@
-Jul 05 01:40:11 web02 sshd[3001]: Accepted publickey for deploy from 10.0.7.12 port 40122 ssh2
-Jul 05 01:55:03 web02 sshd[3044]: Accepted password for alice from 10.0.7.31 port 40890 ssh2
-Jul 05 02:03:20 web02 sshd[3080]: Accepted password for bob from 10.0.7.44 port 41002 ssh2
-Jul 05 02:09:58 web02 sshd[3120]: Invalid user admin from 203.0.113.66 port 51001
-Jul 05 02:09:59 web02 sshd[3121]: Failed password for invalid user admin from 203.0.113.66 port 51001 ssh2
-Jul 05 02:10:01 web02 sshd[3123]: Invalid user oracle from 203.0.113.66 port 51014
-Jul 05 02:10:02 web02 sshd[3124]: Failed password for invalid user oracle from 203.0.113.66 port 51014 ssh2
-Jul 05 02:10:04 web02 sshd[3126]: Failed password for root from 203.0.113.66 port 51022 ssh2
-Jul 05 02:10:06 web02 sshd[3128]: Failed password for root from 203.0.113.66 port 51031 ssh2
-Jul 05 02:10:08 web02 sshd[3130]: Failed password for root from 203.0.113.66 port 51040 ssh2
-Jul 05 02:10:10 web02 sshd[3132]: Failed password for root from 203.0.113.66 port 51049 ssh2
-Jul 05 02:10:12 web02 sshd[3134]: Failed password for admin from 203.0.113.66 port 51058 ssh2
-Jul 05 02:10:14 web02 sshd[3136]: Invalid user postgres from 203.0.113.66 port 51067
-Jul 05 02:10:15 web02 sshd[3137]: Failed password for invalid user postgres from 203.0.113.66 port 51067 ssh2
-Jul 05 02:10:31 web02 sshd[3160]: Accepted password for root from 203.0.113.66 port 51120 ssh2
-Jul 05 02:10:31 web02 sshd[3160]: pam_unix(sshd:session): session opened for user root by (uid=0)
-Jul 05 02:10:58 web02 useradd[3199]: new user: name=svc-update, UID=0, GID=0, home=/home/svc-update, shell=/bin/bash
-Jul 05 02:11:22 web02 sudo:   svc-update : TTY=pts/2 ; PWD=/root ; authentication failure ; USER=root
-Jul 05 02:14:40 web02 sshd[3301]: Accepted password for carol from 10.0.7.58 port 42210 ssh2
+Jul 05 00:05:02 web02 sshd[3141]: Accepted publickey for deploy from 10.0.7.12 port 50069 ssh2
+Jul 05 00:05:02 web02 sshd[3141]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 00:05:49 web02 sshd[3144]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 00:17:00 web02 CRON[3009]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 00:17:00 db01 CRON[7003]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:17:00 web02 CRON[3015]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:17:00 db01 CRON[7009]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:58:03 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 23
+Jul 05 01:58:03 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 110
+Jul 05 01:58:03 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 1433
+Jul 05 01:58:03 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 3389
+Jul 05 01:58:04 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 139
+Jul 05 01:58:04 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 22
+Jul 05 01:58:04 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 53
+Jul 05 01:58:04 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 6379
+Jul 05 01:58:05 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 80
+Jul 05 01:58:05 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 143
+Jul 05 01:58:05 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 445
+Jul 05 01:58:05 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 21
+Jul 05 01:58:06 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 5900
+Jul 05 01:58:06 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 1723
+Jul 05 01:58:06 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 8080
+Jul 05 01:58:06 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 443
+Jul 05 01:58:07 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 995
+Jul 05 01:58:07 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 25
+Jul 05 01:58:07 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 135
+Jul 05 01:58:07 sensor01 honeypot[9001]: TCP connection from 203.0.113.66 to port 3306
+Jul 05 02:02:10 web02 sshd[3203]: Invalid user admin from 203.0.113.66 port 46829
+Jul 05 02:02:11 web02 sshd[3203]: Failed password for invalid user admin from 203.0.113.66 port 46829 ssh2
+Jul 05 02:02:34 web02 sshd[3208]: Invalid user oracle from 203.0.113.66 port 47004
+Jul 05 02:02:35 web02 sshd[3208]: Failed password for invalid user oracle from 203.0.113.66 port 47004 ssh2
+Jul 05 02:02:56 web02 sshd[3211]: Invalid user postgres from 203.0.113.66 port 55861
+Jul 05 02:02:57 web02 sshd[3211]: Failed password for invalid user postgres from 203.0.113.66 port 55861 ssh2
+Jul 05 02:03:21 web02 sshd[3218]: Invalid user test from 203.0.113.66 port 58114
+Jul 05 02:03:22 web02 sshd[3218]: Failed password for invalid user test from 203.0.113.66 port 58114 ssh2
+Jul 05 02:03:44 web02 sshd[3221]: Invalid user ubuntu from 203.0.113.66 port 47256
+Jul 05 02:03:45 web02 sshd[3221]: Failed password for invalid user ubuntu from 203.0.113.66 port 47256 ssh2
+Jul 05 02:04:08 web02 sshd[3228]: Invalid user git from 203.0.113.66 port 60459
+Jul 05 02:04:09 web02 sshd[3228]: Failed password for invalid user git from 203.0.113.66 port 60459 ssh2
+Jul 05 02:04:30 web02 sshd[3235]: Invalid user jenkins from 203.0.113.66 port 45213
+Jul 05 02:04:31 web02 sshd[3235]: Failed password for invalid user jenkins from 203.0.113.66 port 45213 ssh2
+Jul 05 02:04:56 web02 sshd[3241]: Invalid user ftp from 203.0.113.66 port 41290
+Jul 05 02:04:57 web02 sshd[3241]: Failed password for invalid user ftp from 203.0.113.66 port 41290 ssh2
+Jul 05 02:05:15 web02 sshd[3250]: Invalid user guest from 203.0.113.66 port 59659
+Jul 05 02:05:16 web02 sshd[3250]: Failed password for invalid user guest from 203.0.113.66 port 59659 ssh2
+Jul 05 02:05:37 web02 sshd[3257]: Failed password for alice from 203.0.113.66 port 50057 ssh2
+Jul 05 02:07:00 web02 sshd[3264]: Failed password for bob from 198.51.100.10 port 51753 ssh2
+Jul 05 02:07:22 web02 sshd[3269]: Failed password for bob from 198.51.100.11 port 54420 ssh2
+Jul 05 02:07:49 web02 sshd[3276]: Failed password for bob from 198.51.100.12 port 44720 ssh2
+Jul 05 02:08:12 web02 sshd[3280]: Failed password for bob from 198.51.100.13 port 52629 ssh2
+Jul 05 02:08:29 web02 sshd[3288]: Failed password for bob from 198.51.100.14 port 40094 ssh2
+Jul 05 02:08:54 web02 sshd[3290]: Failed password for bob from 198.51.100.15 port 49018 ssh2
+Jul 05 02:09:24 web02 sshd[3299]: Failed password for bob from 198.51.100.16 port 59470 ssh2
+Jul 05 02:09:51 web02 sshd[3302]: Failed password for bob from 198.51.100.17 port 41217 ssh2
+Jul 05 02:10:18 web02 sshd[3306]: Failed password for bob from 198.51.100.18 port 60954 ssh2
+Jul 05 02:10:47 web02 sshd[3308]: Failed password for bob from 198.51.100.19 port 47963 ssh2
+Jul 05 02:11:11 web02 sshd[3309]: Failed password for bob from 198.51.100.20 port 56110 ssh2
+Jul 05 02:11:32 web02 sshd[3315]: Failed password for bob from 198.51.100.21 port 57529 ssh2
+Jul 05 02:13:02 web02 sshd[3320]: Failed password for root from 203.0.113.66 port 59004 ssh2
+Jul 05 02:13:04 web02 sshd[3323]: Failed password for root from 203.0.113.66 port 56574 ssh2
+Jul 05 02:13:08 web02 sshd[3324]: Failed password for root from 203.0.113.66 port 58364 ssh2
+Jul 05 02:13:11 web02 sshd[3329]: Failed password for root from 203.0.113.66 port 40519 ssh2
+Jul 05 02:13:13 web02 sshd[3332]: Failed password for root from 203.0.113.66 port 55266 ssh2
+Jul 05 02:13:15 web02 sshd[3340]: Failed password for root from 203.0.113.66 port 54993 ssh2
+Jul 05 02:13:19 web02 sshd[3341]: Failed password for root from 203.0.113.66 port 45743 ssh2
+Jul 05 02:14:01 web02 sshd[3344]: Accepted password for root from 203.0.113.66 port 47767 ssh2
+Jul 05 02:14:01 web02 sshd[3344]: pam_unix(sshd:session): session opened for user root by (uid=0)
+Jul 05 02:15:10 web02 useradd[3348]: new user: name=svc-update, UID=0, GID=0, home=/var/lib/svc-update, shell=/bin/bash, from=/dev/pts/2
+Jul 05 02:15:24 web02 passwd[3349]: pam_unix(passwd:chauthtok): password changed for svc-update
+Jul 05 02:15:40 web02 usermod[3357]: add 'svc-update' to group 'sudo'
+Jul 05 02:15:41 web02 usermod[3365]: add 'svc-update' to shadow group 'sudo'
+Jul 05 02:16:05 web02 sshd[3372]: pam_unix(sshd:session): session closed for user root
+Jul 05 02:17:00 web02 CRON[3018]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 02:17:00 db01 CRON[7017]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 02:17:12 web02 sshd[3377]: Accepted password for svc-update from 203.0.113.66 port 50250 ssh2
+Jul 05 02:17:12 web02 sshd[3377]: pam_unix(sshd:session): session opened for user svc-update by (uid=0)
+Jul 05 02:17:40 web02 sudo[3378]: pam_unix(sudo:auth): authentication failure; logname=svc-update uid=0 euid=0 tty=/dev/pts/3 ruser=svc-update rhost=  user=svc-update
+Jul 05 02:17:52 web02 sudo:   svc-update : TTY=pts/3 ; PWD=/var/lib/svc-update ; USER=root ; COMMAND=/bin/bash
+Jul 05 02:19:05 web02 sudo:   svc-update : TTY=pts/3 ; PWD=/var/lib/svc-update ; USER=root ; COMMAND=/usr/sbin/ufw disable
+Jul 05 02:19:09 web02 sudo:   svc-update : TTY=pts/3 ; PWD=/var/lib/svc-update ; USER=root ; COMMAND=/usr/sbin/iptables -F
+Jul 05 02:22:30 db01 sshd[7125]: Accepted password for root from 10.0.7.20 port 51569 ssh2
+Jul 05 02:22:30 db01 sshd[7125]: pam_unix(sshd:session): session opened for user root by (uid=0)
+Jul 05 02:23:02 db01 passwd[7127]: pam_unix(passwd:chauthtok): password changed for postgres
+Jul 05 02:31:44 db01 sshd[7130]: pam_unix(sshd:session): session closed for user root
+Jul 05 02:32:10 web02 sshd[3380]: pam_unix(sshd:session): session closed for user svc-update
+Jul 05 03:17:00 web02 CRON[3024]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:17:00 db01 CRON[7022]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:30:00 db01 CRON[7118]: (postgres) CMD (/usr/local/bin/pg_backup.sh --nightly)
+Jul 05 04:05:33 web02 sshd[3153]: Accepted publickey for deploy from 10.0.7.12 port 57316 ssh2
+Jul 05 04:05:33 web02 sshd[3153]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 04:06:16 web02 sshd[3154]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 04:17:00 web02 CRON[3031]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 04:17:00 db01 CRON[7026]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 05:17:00 web02 CRON[3037]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 05:17:00 db01 CRON[7035]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 06:17:00 web02 CRON[3042]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 06:17:00 db01 CRON[7037]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 07:17:00 web02 CRON[3049]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 07:17:00 db01 CRON[7046]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:17:00 web02 CRON[3053]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:17:00 db01 CRON[7047]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:37:54 web02 sshd[3455]: Accepted password for dave from 10.0.7.62 port 49120 ssh2
+Jul 05 08:37:54 web02 sshd[3455]: pam_unix(sshd:session): session opened for user dave by (uid=0)
+Jul 05 09:05:47 web02 sshd[3162]: Accepted publickey for deploy from 10.0.7.12 port 59128 ssh2
+Jul 05 09:05:47 web02 sshd[3162]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 09:06:29 web02 sshd[3403]: Failed password for bob from 10.0.7.44 port 41929 ssh2
+Jul 05 09:06:38 web02 sshd[3410]: Accepted password for bob from 10.0.7.44 port 47452 ssh2
+Jul 05 09:06:38 web02 sshd[3410]: pam_unix(sshd:session): session opened for user bob by (uid=0)
+Jul 05 09:07:05 web02 sshd[3163]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 09:11:42 web02 sshd[3428]: Accepted password for carol from 10.0.7.58 port 51826 ssh2
+Jul 05 09:11:42 web02 sshd[3428]: pam_unix(sshd:session): session opened for user carol by (uid=0)
+Jul 05 09:15:00 web02 sshd[3385]: Accepted password for alice from 10.0.7.31 port 60650 ssh2
+Jul 05 09:15:00 web02 sshd[3385]: pam_unix(sshd:session): session opened for user alice by (uid=0)
+Jul 05 09:17:00 web02 CRON[3059]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 09:17:00 db01 CRON[7049]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 10:12:04 web02 sudo:   dave : TTY=pts/1 ; PWD=/home/dave ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx
+Jul 05 10:17:00 web02 CRON[3061]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 10:17:00 db01 CRON[7056]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 10:40:31 web02 sudo:   dave : TTY=pts/1 ; PWD=/home/dave ; USER=root ; COMMAND=/usr/bin/apt-get upgrade -y
+Jul 05 11:03:15 db01 sshd[7131]: Accepted password for carol from 10.0.7.58 port 42922 ssh2
+Jul 05 11:03:15 db01 sshd[7131]: pam_unix(sshd:session): session opened for user carol by (uid=0)
+Jul 05 11:05:51 web02 sshd[3172]: Accepted publickey for deploy from 10.0.7.12 port 55977 ssh2
+Jul 05 11:05:51 web02 sshd[3172]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 11:07:20 web02 sshd[3178]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 11:17:00 web02 CRON[3068]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:17:00 db01 CRON[7057]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:48:02 db01 sshd[7132]: pam_unix(sshd:session): session closed for user carol
+Jul 05 12:17:00 web02 CRON[3075]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 12:17:00 db01 CRON[7058]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 12:25:00 web02 sshd[3389]: pam_unix(sshd:session): session closed for user alice
+Jul 05 12:46:54 web02 sshd[3456]: pam_unix(sshd:session): session closed for user dave
+Jul 05 13:17:00 web02 CRON[3077]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 13:17:00 db01 CRON[7062]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 13:27:38 web02 sshd[3419]: pam_unix(sshd:session): session closed for user bob
+Jul 05 13:31:00 web02 sshd[3439]: Accepted password for carol from 10.0.7.58 port 41939 ssh2
+Jul 05 13:31:00 web02 sshd[3439]: pam_unix(sshd:session): session opened for user carol by (uid=0)
+Jul 05 13:36:05 web02 sshd[3392]: Accepted password for alice from 10.0.7.31 port 58023 ssh2
+Jul 05 13:36:05 web02 sshd[3392]: pam_unix(sshd:session): session opened for user alice by (uid=0)
+Jul 05 13:48:42 web02 sshd[3435]: pam_unix(sshd:session): session closed for user carol
+Jul 05 13:56:19 web02 sshd[3464]: Accepted password for dave from 10.0.7.62 port 52175 ssh2
+Jul 05 13:56:19 web02 sshd[3464]: pam_unix(sshd:session): session opened for user dave by (uid=0)
+Jul 05 13:59:30 web02 sshd[3423]: Accepted password for bob from 10.0.7.44 port 42420 ssh2
+Jul 05 13:59:30 web02 sshd[3423]: pam_unix(sshd:session): session opened for user bob by (uid=0)
+Jul 05 14:05:47 web02 sshd[3187]: Accepted publickey for deploy from 10.0.7.12 port 58644 ssh2
+Jul 05 14:05:47 web02 sshd[3187]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 14:06:39 web02 sshd[3192]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 14:17:00 web02 CRON[3086]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 14:17:00 db01 CRON[7066]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 15:02:47 web02 sudo:   dave : TTY=pts/1 ; PWD=/home/dave ; USER=root ; COMMAND=/usr/sbin/useradd -m intern1
+Jul 05 15:02:47 web02 useradd[3471]: new user: name=intern1, UID=1005, GID=1005, home=/home/intern1, shell=/bin/bash, from=/dev/pts/1
+Jul 05 15:17:00 web02 CRON[3092]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 15:17:00 db01 CRON[7068]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:05:04 web02 sshd[3195]: Accepted publickey for deploy from 10.0.7.12 port 41930 ssh2
+Jul 05 16:05:04 web02 sshd[3195]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 16:05:45 web02 sshd[3201]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 16:17:00 web02 CRON[3099]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:17:00 db01 CRON[7073]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:58:19 web02 sshd[3470]: pam_unix(sshd:session): session closed for user dave
+Jul 05 17:03:30 web02 sshd[3425]: pam_unix(sshd:session): session closed for user bob
+Jul 05 17:05:00 web02 sshd[3448]: pam_unix(sshd:session): session closed for user carol
+Jul 05 17:17:00 web02 CRON[3106]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 17:17:00 db01 CRON[7077]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 17:17:05 web02 sshd[3399]: pam_unix(sshd:session): session closed for user alice
+Jul 05 18:17:00 web02 CRON[3111]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 18:17:00 db01 CRON[7085]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 19:17:00 web02 CRON[3112]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 19:17:00 db01 CRON[7091]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 20:17:00 web02 CRON[3118]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 20:17:00 db01 CRON[7092]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 21:17:00 web02 CRON[3120]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 21:17:00 db01 CRON[7098]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 22:17:00 web02 CRON[3128]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 22:17:00 db01 CRON[7105]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 23:17:00 web02 CRON[3132]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 23:17:00 db01 CRON[7109]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)

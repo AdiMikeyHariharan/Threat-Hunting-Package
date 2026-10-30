@@ -5,7 +5,7 @@ type: detection
 detection:
   selection:
     program: sshd
-    message|contains: "Invalid user"
+    message|startswith: "Invalid user"
   condition: selection
 mitre:
   - T1110

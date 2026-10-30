@@ -1,26 +1,172 @@
-Jul 05 02:55:03 web05 sshd[5001]: Accepted publickey for deploy from 10.0.5.20 port 40100 ssh2
-Jul 05 03:12:00 web05 sshd[5100]: Accepted password for root from 10.0.5.9 port 41000 ssh2
-Jul 05 03:12:00 web05 sshd[5100]: pam_unix(sshd:session): session opened for user root by (uid=0)
-Jul 05 13:00:00 web05 sshd[5201]: Failed password for alice from 198.51.100.23 port 51001 ssh2
-Jul 05 13:00:35 web05 sshd[5202]: Failed password for bob from 198.51.100.23 port 51002 ssh2
-Jul 05 13:01:10 web05 sshd[5203]: Failed password for carol from 198.51.100.23 port 51003 ssh2
-Jul 05 13:01:45 web05 sshd[5204]: Failed password for dave from 198.51.100.23 port 51004 ssh2
-Jul 05 13:02:20 web05 sshd[5205]: Failed password for eve from 198.51.100.23 port 51005 ssh2
-Jul 05 13:02:55 web05 sshd[5206]: Failed password for frank from 198.51.100.23 port 51006 ssh2
-Jul 05 13:03:30 web05 sshd[5207]: Failed password for grace from 198.51.100.23 port 51007 ssh2
-Jul 05 13:04:05 web05 sshd[5208]: Failed password for henry from 198.51.100.23 port 51008 ssh2
-Jul 05 13:10:00 web05 sshd[5301]: Failed password for admin from 203.0.113.10 port 52001 ssh2
-Jul 05 13:11:00 web05 sshd[5302]: Failed password for admin from 203.0.113.11 port 52002 ssh2
-Jul 05 13:12:00 web05 sshd[5303]: Failed password for admin from 203.0.113.12 port 52003 ssh2
-Jul 05 13:13:00 web05 sshd[5304]: Failed password for admin from 203.0.113.13 port 52004 ssh2
-Jul 05 13:14:00 web05 sshd[5305]: Failed password for admin from 203.0.113.14 port 52005 ssh2
-Jul 05 13:15:00 web05 sshd[5306]: Failed password for admin from 203.0.113.15 port 52006 ssh2
-Jul 05 13:16:00 web05 sshd[5307]: Failed password for admin from 203.0.113.16 port 52007 ssh2
-Jul 05 13:17:00 web05 sshd[5308]: Failed password for admin from 203.0.113.17 port 52008 ssh2
-Jul 05 13:18:00 web05 sshd[5309]: Failed password for admin from 203.0.113.18 port 52009 ssh2
-Jul 05 13:19:00 web05 sshd[5310]: Failed password for admin from 203.0.113.19 port 52010 ssh2
-Jul 05 14:00:00 web05 usermod[5400]: add 'contractor' to group 'sudo'
-Jul 05 14:05:00 web05 sudo:   contractor : TTY=pts/3 ; PWD=/home/contractor ; USER=root ; COMMAND=/bin/bash
-Jul 05 14:06:00 web05 sudo:   contractor : TTY=pts/3 ; PWD=/root ; USER=root ; COMMAND=/usr/sbin/ufw disable
-Jul 05 14:07:00 web05 passwd[5410]: password changed for backupsvc
-Jul 05 15:30:00 web05 sshd[5500]: Accepted password for alice from 10.0.5.31 port 42000 ssh2
+Jul 05 00:17:00 web05 CRON[5005]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 00:17:00 app02 CRON[6109]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 00:17:00 db03 CRON[8303]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:17:00 web05 CRON[5006]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:17:00 app02 CRON[6115]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 01:17:00 db03 CRON[8306]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 02:05:29 web05 sshd[5138]: Accepted publickey for deploy from 10.0.5.20 port 57972 ssh2
+Jul 05 02:05:29 web05 sshd[5138]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 02:05:52 web05 sshd[5143]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 02:17:00 web05 CRON[5011]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 02:17:00 app02 CRON[6116]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 02:17:00 db03 CRON[8314]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:12:00 db03 sshd[8405]: Accepted password for root from 10.0.5.9 port 42380 ssh2
+Jul 05 03:12:00 db03 sshd[8405]: pam_unix(sshd:session): session opened for user root by (uid=0)
+Jul 05 03:17:00 web05 CRON[5016]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:17:00 app02 CRON[6123]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:17:00 db03 CRON[8320]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 03:40:18 db03 sshd[8412]: pam_unix(sshd:session): session closed for user root
+Jul 05 04:17:00 web05 CRON[5023]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 04:17:00 app02 CRON[6128]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 04:17:00 db03 CRON[8321]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 05:17:00 web05 CRON[5031]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 05:17:00 app02 CRON[6130]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 05:17:00 db03 CRON[8327]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 06:17:00 web05 CRON[5036]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 06:17:00 app02 CRON[6138]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 06:17:00 db03 CRON[8328]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 07:17:00 web05 CRON[5040]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 07:17:00 app02 CRON[6142]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 07:17:00 db03 CRON[8329]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:17:00 web05 CRON[5049]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:17:00 app02 CRON[6151]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:17:00 db03 CRON[8332]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 08:34:27 web05 sshd[5171]: Accepted password for alice from 10.0.5.31 port 56294 ssh2
+Jul 05 08:34:27 web05 sshd[5171]: pam_unix(sshd:session): session opened for user alice by (uid=0)
+Jul 05 08:38:17 app02 sshd[6299]: Accepted password for henry from 10.0.5.38 port 57391 ssh2
+Jul 05 08:38:17 app02 sshd[6299]: pam_unix(sshd:session): session opened for user henry by (uid=0)
+Jul 05 08:43:04 web05 sshd[5205]: Accepted password for carol from 10.0.5.33 port 48231 ssh2
+Jul 05 08:43:04 web05 sshd[5205]: pam_unix(sshd:session): session opened for user carol by (uid=0)
+Jul 05 08:43:48 app02 sshd[6277]: Accepted password for grace from 10.0.5.37 port 44422 ssh2
+Jul 05 08:43:48 app02 sshd[6277]: pam_unix(sshd:session): session opened for user grace by (uid=0)
+Jul 05 08:45:14 web05 sshd[5248]: Failed password for erin from 10.0.5.35 port 57643 ssh2
+Jul 05 08:45:23 web05 sshd[5256]: Accepted password for erin from 10.0.5.35 port 53729 ssh2
+Jul 05 08:45:23 web05 sshd[5256]: pam_unix(sshd:session): session opened for user erin by (uid=0)
+Jul 05 08:45:38 web05 sshd[5223]: Accepted password for dave from 10.0.5.34 port 45221 ssh2
+Jul 05 08:45:38 web05 sshd[5223]: pam_unix(sshd:session): session opened for user dave by (uid=0)
+Jul 05 09:06:59 web05 sshd[5189]: Accepted password for bob from 10.0.5.32 port 41730 ssh2
+Jul 05 09:06:59 web05 sshd[5189]: pam_unix(sshd:session): session opened for user bob by (uid=0)
+Jul 05 09:07:52 app02 sshd[6253]: Accepted password for frank from 10.0.5.36 port 51612 ssh2
+Jul 05 09:07:52 app02 sshd[6253]: pam_unix(sshd:session): session opened for user frank by (uid=0)
+Jul 05 09:17:00 web05 CRON[5050]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 09:17:00 app02 CRON[6160]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 09:17:00 db03 CRON[8333]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 09:40:12 jump01 sshd[4201]: Accepted password for dave from 10.0.5.34 port 58219 ssh2
+Jul 05 09:40:12 jump01 sshd[4201]: pam_unix(sshd:session): session opened for user dave by (uid=0)
+Jul 05 10:05:04 app02 sshd[6224]: Accepted publickey for deploy from 10.0.5.20 port 57579 ssh2
+Jul 05 10:05:04 app02 sshd[6224]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 10:05:34 web05 sshd[5149]: Accepted publickey for deploy from 10.0.5.20 port 59637 ssh2
+Jul 05 10:05:34 web05 sshd[5149]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 10:06:11 app02 sshd[6231]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 10:06:59 web05 sshd[5155]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 10:17:00 web05 CRON[5057]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 10:17:00 app02 CRON[6163]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 10:17:00 db03 CRON[8338]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:17:00 web05 CRON[5059]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:17:00 app02 CRON[6171]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:17:00 db03 CRON[8340]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 11:47:04 web05 sshd[5212]: pam_unix(sshd:session): session closed for user carol
+Jul 05 11:48:38 web05 sshd[5230]: pam_unix(sshd:session): session closed for user dave
+Jul 05 12:00:23 web05 sshd[5262]: pam_unix(sshd:session): session closed for user erin
+Jul 05 12:17:00 web05 CRON[5061]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 12:17:00 app02 CRON[6172]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 12:17:00 db03 CRON[8344]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 12:17:27 web05 sshd[5172]: pam_unix(sshd:session): session closed for user alice
+Jul 05 12:36:17 app02 sshd[6306]: pam_unix(sshd:session): session closed for user henry
+Jul 05 12:39:48 app02 sshd[6282]: pam_unix(sshd:session): session closed for user grace
+Jul 05 12:42:52 app02 sshd[6260]: pam_unix(sshd:session): session closed for user frank
+Jul 05 13:00:00 web05 sshd[5276]: Failed password for alice from 198.51.100.23 port 44957 ssh2
+Jul 05 13:00:38 web05 sshd[5285]: Failed password for bob from 198.51.100.23 port 50088 ssh2
+Jul 05 13:01:14 web05 sshd[5288]: Failed password for carol from 198.51.100.23 port 50050 ssh2
+Jul 05 13:01:52 web05 sshd[5289]: Failed password for dave from 198.51.100.23 port 44183 ssh2
+Jul 05 13:02:25 web05 sshd[5296]: Failed password for erin from 198.51.100.23 port 49703 ssh2
+Jul 05 13:02:59 web05 sshd[5299]: Failed password for frank from 198.51.100.23 port 50847 ssh2
+Jul 05 13:03:33 web05 sshd[5302]: Failed password for grace from 198.51.100.23 port 52564 ssh2
+Jul 05 13:04:06 web05 sshd[5308]: Failed password for henry from 198.51.100.23 port 60282 ssh2
+Jul 05 13:04:39 web05 sshd[5316]: Failed password for admin from 198.51.100.23 port 49528 ssh2
+Jul 05 13:05:15 web05 sshd[5317]: Failed password for backupsvc from 198.51.100.23 port 59296 ssh2
+Jul 05 13:10:00 web05 sshd[5326]: Failed password for admin from 203.0.113.10 port 57861 ssh2
+Jul 05 13:10:55 web05 sshd[5328]: Failed password for admin from 203.0.113.11 port 55890 ssh2
+Jul 05 13:11:37 web05 sshd[5330]: Failed password for admin from 203.0.113.12 port 60719 ssh2
+Jul 05 13:12:31 web05 sshd[5336]: Failed password for admin from 203.0.113.13 port 55295 ssh2
+Jul 05 13:13:15 web05 sshd[5337]: Failed password for admin from 203.0.113.14 port 47868 ssh2
+Jul 05 13:14:00 web05 sshd[5338]: Failed password for admin from 203.0.113.15 port 48927 ssh2
+Jul 05 13:14:41 web05 sshd[5340]: Failed password for admin from 203.0.113.16 port 55995 ssh2
+Jul 05 13:15:27 web05 sshd[5348]: Failed password for admin from 203.0.113.17 port 51024 ssh2
+Jul 05 13:16:14 web05 sshd[5355]: Failed password for admin from 203.0.113.18 port 51737 ssh2
+Jul 05 13:17:00 web05 CRON[5069]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 13:17:00 app02 CRON[6173]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 13:17:00 db03 CRON[8345]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 13:17:08 web05 sshd[5362]: Failed password for admin from 203.0.113.19 port 53513 ssh2
+Jul 05 13:17:56 web05 sshd[5369]: Failed password for admin from 203.0.113.20 port 54539 ssh2
+Jul 05 13:18:51 web05 sshd[5372]: Failed password for admin from 203.0.113.21 port 51068 ssh2
+Jul 05 13:35:28 web05 sshd[5270]: Accepted password for erin from 10.0.5.35 port 52764 ssh2
+Jul 05 13:35:28 web05 sshd[5270]: pam_unix(sshd:session): session opened for user erin by (uid=0)
+Jul 05 13:40:40 app02 sshd[6262]: Accepted password for frank from 10.0.5.36 port 43104 ssh2
+Jul 05 13:40:40 app02 sshd[6262]: pam_unix(sshd:session): session opened for user frank by (uid=0)
+Jul 05 13:44:49 web05 sshd[5215]: Accepted password for carol from 10.0.5.33 port 45814 ssh2
+Jul 05 13:44:49 web05 sshd[5215]: pam_unix(sshd:session): session opened for user carol by (uid=0)
+Jul 05 13:44:50 app02 sshd[6289]: Accepted password for grace from 10.0.5.37 port 52710 ssh2
+Jul 05 13:44:50 app02 sshd[6289]: pam_unix(sshd:session): session opened for user grace by (uid=0)
+Jul 05 13:44:54 web05 sshd[5179]: Accepted password for alice from 10.0.5.31 port 49513 ssh2
+Jul 05 13:44:54 web05 sshd[5179]: pam_unix(sshd:session): session opened for user alice by (uid=0)
+Jul 05 13:50:02 app02 sshd[6310]: Accepted password for henry from 10.0.5.38 port 59107 ssh2
+Jul 05 13:50:02 app02 sshd[6310]: pam_unix(sshd:session): session opened for user henry by (uid=0)
+Jul 05 13:50:23 web05 sshd[5197]: Accepted password for bob from 10.0.5.32 port 56830 ssh2
+Jul 05 13:50:23 web05 sshd[5197]: pam_unix(sshd:session): session opened for user bob by (uid=0)
+Jul 05 13:52:59 web05 sshd[5196]: pam_unix(sshd:session): session closed for user bob
+Jul 05 13:55:20 app02 sshd[6320]: Accepted password for contractor from 10.0.5.77 port 59128 ssh2
+Jul 05 13:55:20 app02 sshd[6320]: pam_unix(sshd:session): session opened for user contractor by (uid=0)
+Jul 05 13:57:59 web05 sshd[5232]: Accepted password for dave from 10.0.5.34 port 54328 ssh2
+Jul 05 13:57:59 web05 sshd[5232]: pam_unix(sshd:session): session opened for user dave by (uid=0)
+Jul 05 14:00:00 app02 usermod[6323]: add 'contractor' to group 'sudo'
+Jul 05 14:05:00 app02 sudo:   contractor : TTY=pts/3 ; PWD=/home/contractor ; USER=root ; COMMAND=/bin/bash
+Jul 05 14:06:00 app02 sudo:   contractor : TTY=pts/3 ; PWD=/root ; USER=root ; COMMAND=/usr/sbin/ufw disable
+Jul 05 14:07:00 app02 passwd[6328]: pam_unix(passwd:chauthtok): password changed for backupsvc
+Jul 05 14:08:30 app02 useradd[6335]: new user: name=support, UID=0, GID=0, home=/home/support, shell=/bin/bash, from=/dev/pts/3
+Jul 05 14:17:00 web05 CRON[5074]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 14:17:00 app02 CRON[6181]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 14:17:00 db03 CRON[8346]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 14:20:11 app02 sshd[6341]: pam_unix(sshd:session): session closed for user contractor
+Jul 05 15:05:31 web05 sshd[5159]: Accepted publickey for deploy from 10.0.5.20 port 56900 ssh2
+Jul 05 15:05:31 web05 sshd[5159]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 15:05:38 app02 sshd[6237]: Accepted publickey for deploy from 10.0.5.20 port 54686 ssh2
+Jul 05 15:05:38 app02 sshd[6237]: pam_unix(sshd:session): session opened for user deploy by (uid=0)
+Jul 05 15:06:06 web05 sshd[5165]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 15:06:50 app02 sshd[6244]: pam_unix(sshd:session): session closed for user deploy
+Jul 05 15:17:00 web05 CRON[5080]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 15:17:00 app02 CRON[6185]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 15:17:00 db03 CRON[8355]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:17:00 web05 CRON[5083]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:17:00 app02 CRON[6188]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:17:00 db03 CRON[8361]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 16:40:28 web05 sshd[5273]: pam_unix(sshd:session): session closed for user erin
+Jul 05 16:56:02 app02 sshd[6314]: pam_unix(sshd:session): session closed for user henry
+Jul 05 17:00:49 web05 sshd[5218]: pam_unix(sshd:session): session closed for user carol
+Jul 05 17:02:40 jump01 sshd[4203]: pam_unix(sshd:session): session closed for user dave
+Jul 05 17:03:59 web05 sshd[5241]: pam_unix(sshd:session): session closed for user dave
+Jul 05 17:06:40 app02 sshd[6269]: pam_unix(sshd:session): session closed for user frank
+Jul 05 17:09:50 app02 sshd[6297]: pam_unix(sshd:session): session closed for user grace
+Jul 05 17:17:00 web05 CRON[5092]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 17:17:00 app02 CRON[6192]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 17:17:00 db03 CRON[8370]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 17:23:54 web05 sshd[5187]: pam_unix(sshd:session): session closed for user alice
+Jul 05 17:25:23 web05 sshd[5198]: pam_unix(sshd:session): session closed for user bob
+Jul 05 18:17:00 web05 CRON[5099]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 18:17:00 app02 CRON[6200]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 18:17:00 db03 CRON[8372]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 19:17:00 web05 CRON[5108]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 19:17:00 app02 CRON[6203]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 19:17:00 db03 CRON[8381]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 20:17:00 web05 CRON[5117]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 20:17:00 app02 CRON[6208]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 20:17:00 db03 CRON[8388]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 21:17:00 web05 CRON[5125]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 21:17:00 app02 CRON[6214]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 21:17:00 db03 CRON[8396]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 22:17:00 web05 CRON[5130]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 22:17:00 app02 CRON[6219]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 22:17:00 db03 CRON[8400]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 23:17:00 web05 CRON[5137]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 23:17:00 app02 CRON[6222]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)
+Jul 05 23:17:00 db03 CRON[8401]: (root) CMD (cd / && run-parts --report /etc/cron.hourly)

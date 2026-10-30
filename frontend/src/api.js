@@ -49,11 +49,16 @@ export async function getSsoConfiguration() {
   return res.json();
 }
 
-export function beginSsoLogin() {
+// prompt is intentionally limited to "login": reauthenticate after sign-out, or
+// offer another account after denial. Keycloak ignores prompt=select_account.
+export function beginSsoLogin({ prompt = null } = {}) {
   const loginUrl = import.meta.env.VITE_SSO_LOGIN_URL?.trim() || "/api/gateway/auth/sso/login";
   const target = new URL(loginUrl, window.location.origin);
   if (target.origin !== window.location.origin || target.username || target.password) {
     throw new Error("The SSO endpoint must be on the dashboard's origin.");
+  }
+  if (prompt === "login") {
+    target.searchParams.set("prompt", prompt);
   }
   window.location.assign(target.toString());
 }
@@ -109,6 +114,17 @@ export async function logoutGateway(accessToken, refreshToken) {
     headers: authHeaders(accessToken, { "Content-Type": "application/json" }),
     body: JSON.stringify({ refresh_token: refreshToken }),
   }).catch(() => {});
+}
+
+// Who am I, according to the gateway right now? Returns the HTTP status (or
+// null on a network error) so callers can tell "revoked" from "offline".
+export async function getMe(token) {
+  try {
+    const res = await fetch("/api/gateway/auth/me", { headers: authHeaders(token), cache: "no-store" });
+    return res.status;
+  } catch {
+    return null;
+  }
 }
 
 export async function callGatewayProxy(service, path, token, method = "GET", body = null) {

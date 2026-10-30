@@ -54,7 +54,7 @@ python -m siem_hunter.cli \
     --out logs/detections.json
 ```
 
-You should see 9 findings, including an SSH brute-force correlation, a root
+You should see 7 findings, including an SSH brute-force correlation, a root
 login, and the anomaly hunter independently flagging the same attacker IP.
 
 Structured logs are written to `logs/siem_hunter.jsonl` (one JSON object per
@@ -239,14 +239,20 @@ conditions are rejected at load time, not mid-run.
 ## Simulate a real attack (nmap)
 
 `scripts/simulate_scan.py` performs an **end-to-end** demo (not synthetic data):
-it binds a range of local ports, runs a real `nmap` connect-scan against them,
-and logs the actual connections — which the engine then flags as a port scan.
+it binds local ports and logs every real connection while three things happen:
+a health checker polls two service ports (normal traffic), a fast `nmap`
+connect-scan sweeps 41 ports, then a low-and-slow `nmap --scan-delay 1s` scan
+sweeps 15 more.
 
 ```bash
-python scripts/simulate_scan.py                                  # runs nmap vs localhost
+python scripts/simulate_scan.py                                  # runs nmap vs localhost (~30 s)
 python -m siem_hunter.cli --log sample_data/portscan.log --rules rules
-#  -> PORT-SCAN-0001 (High) fires, mapped to T1046 Network Service Discovery
+#  -> PORT-SCAN-0001 (High) fires on the fast scan, mapped to T1046
+#  -> the slow scan spreads 15 ports over ~15 s and evades the 10 s window
 ```
+
+The slow scan is a deliberate, real detection gap: a fixed-window threshold
+rule can be beaten by pacing, which is what threat hunting has to cover.
 
 Only `127.0.0.1` is scanned, so it is self-contained and safe. Regenerate the
 full ATT&CK lookup any time with `python scripts/build_attack_map.py`.
@@ -257,7 +263,8 @@ full ATT&CK lookup any time with `python scripts/build_attack_map.py`.
 
 ```bash
 pip install pytest
-python -m pytest -q          # 18 tests: parser, engine, threshold, anomaly, ATT&CK
+python -m pytest -q          # 242 tests: SIEM engine, gateway, SSO, sessions, sample logs
+(cd frontend && npm test)    # 13 tests: SSO client and cross-tab session handling
 ```
 
 ---
@@ -275,7 +282,8 @@ siem_hunter/
   pipeline.py         ingest -> detect -> hunt -> report orchestration
   cli.py              command-line entry point
 rules/                bundled Sigma-style detection rules
-sample_data/          example auth.log with a planted attack
+sample_data/          sample logs with planted attacks (regenerate: scripts/generate_sample_logs.py;
+                      portscan.log is a real nmap capture from scripts/simulate_scan.py)
 tests/                pytest suite
 docs/ARCHITECTURE.md  design rationale + report skeleton
 ```

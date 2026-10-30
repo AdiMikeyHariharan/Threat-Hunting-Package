@@ -87,6 +87,16 @@ def _login(c, handler, install):
     return response, query
 
 
+@pytest.mark.parametrize("prompt, forwarded", [("login", "login"), ("select_account", None), ("none", None), ("consent", None), (None, None)])
+def test_only_supported_recovery_prompts_are_forwarded_to_the_provider(oidc_env, prompt, forwarded):
+    _config, _requests, _sign, make_handler, install = oidc_env
+    install(make_handler())
+    params = {"prompt": prompt} if prompt else {}
+    response = _client().get("/api/gateway/auth/sso/login", params=params, follow_redirects=False)
+    query = parse_qs(urlsplit(response.headers["location"]).query)
+    assert query.get("prompt", [None])[0] == forwarded
+
+
 def test_oidc_config_is_fail_closed_and_login_uses_pkce(oidc_env, monkeypatch):
     config, requests, _sign, make_handler, install = oidc_env
     c = _client()

@@ -204,6 +204,10 @@ async def login(request: Request) -> Response:
         "code_challenge": _base64(hashlib.sha256(verifier.encode()).digest()),
         "code_challenge_method": "S256",
     }
+    # Only forward "login": it forces reauthentication after local sign-out and
+    # lets a denied user switch accounts. Keycloak ignores "select_account".
+    if request.query_params.get("prompt") == "login":
+        params["prompt"] = "login"
     endpoint = metadata["authorization_endpoint"]
     response = RedirectResponse(
         endpoint + ("&" if "?" in endpoint else "?") + urlencode(params), status_code=302, headers=HEADERS,

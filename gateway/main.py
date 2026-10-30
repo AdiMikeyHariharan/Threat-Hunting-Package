@@ -8,6 +8,7 @@ Run with (mock backends run separately, see gateway/mock_backends.py):
 from __future__ import annotations
 
 import secrets
+import time
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
@@ -24,6 +25,9 @@ from .auth import (
     get_client_ip,
     is_token_revoked,
     list_api_keys,
+    new_session,
+    session_expires_at,
+    session_of,
     register_api_key,
     require_admin,
     revoke_api_key,
@@ -41,7 +45,7 @@ from .policy import PolicyError, load_policy, policy_snapshot
 from .proxy import forward_request
 from .quota import check_login_allowed, record_login_failure, record_login_success
 from .sdwan import sdwan_router
-from .telemetry import read_recent_telemetry, log_gateway_event
+from .telemetry import log_gateway_event, read_recent_telemetry, request_context_middleware
 from .vault import VaultError, vault
 
 app = FastAPI(
@@ -49,6 +53,7 @@ app = FastAPI(
     version="1.0.0",
     description="Centralized Zero-Trust Reverse Proxy and Policy Enforcement Point (PEP)",
 )
+app.middleware("http")(request_context_middleware)
 
 app.include_router(oidc.router)
 
@@ -57,9 +62,10 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
     expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset",
-                    "Retry-After", "X-SDWAN-Route", "X-SDWAN-Region", "X-SDWAN-Failover"],
+                    "Retry-After", "X-SDWAN-Route", "X-SDWAN-Region", "X-SDWAN-Failover",
+                    "X-Request-ID"],
 )
 
 # RFC 6749 5.1: responses carrying tokens must not be cached.
@@ -184,13 +190,18 @@ def issue_token(req: TokenRequest, request: Request, response: Response) -> dict
     return _token_response(user, response)
 
 
-def _token_response(user: users.User, response: Response) -> dict[str, Any]:
+def _token_response(user: users.User, response: Response, session: Optional[dict] = None) -> dict[str, Any]:
     response.headers.update(NO_STORE)
+    session = session or new_session()
+    access = create_access_token(subject=user.username, role=user.role, scopes=user.scopes, session=session)
     return {
-        "access_token": create_access_token(subject=user.username, role=user.role, scopes=user.scopes),
-        "refresh_token": create_refresh_token(user.username),
+        "access_token": access,
+        "refresh_token": create_refresh_token(user.username, session),
         "token_type": "Bearer",
-        "expires_in": JWT_EXPIRATION_MINUTES * 60,
+        # Same cap as the token itself: never past the session's absolute end.
+        "expires_in": int(min(JWT_EXPIRATION_MINUTES * 60, session_expires_at(session) - time.time())),
+        "session_id": session["sid"],
+        "session_expires_at": session_expires_at(session),
         "subject": user.username,
         "role": user.role,
         "scopes": user.scopes,
@@ -222,9 +233,26 @@ def refresh_session(req: RefreshRequest, request: Request, response: Response) -
     if user is None or user.disabled:
         _auth_event(request, 401, subject, "Refresh denied - account missing or disabled")
         raise HTTPException(status_code=401, detail="Account is not active.")
+    session = session_of(claims)
+    if time.time() >= session_expires_at(session):
+        _auth_event(request, 401, subject, "Refresh denied - session reached its maximum lifetime")
+        raise HTTPException(status_code=401, detail="Session has ended. Please sign in again.")
     revoke_token(claims)
     _auth_event(request, 200, subject, "Refresh token rotated", role=user.role)
-    return _token_response(user, response)
+    # Same session: the absolute lifetime keeps counting from the original sign-in.
+    return _token_response(user, response, session)
+
+
+@app.get("/auth/me")
+def whoami(identity: IdentityContext = Depends(authenticate_request)) -> dict[str, Any]:
+    """The caller's current identity. Dashboards poll this so a deprovisioned or
+    re-scoped account is signed out within a minute even while idle."""
+    claims = identity.token_claims
+    return {
+        "subject": identity.subject, "role": identity.role, "scopes": identity.scopes,
+        "auth_type": identity.auth_type,
+        "session_expires_at": session_expires_at(session_of(claims)) if identity.auth_type == "jwt" else None,
+    }
 
 
 @app.post("/auth/logout")

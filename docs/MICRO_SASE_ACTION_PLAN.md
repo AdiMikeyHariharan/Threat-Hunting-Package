@@ -100,6 +100,8 @@ Every proxied request follows a strict deterministic pipeline:
    - Mock backend services (`gateway/mock_backends.py`, a separate process) reject direct incoming requests missing this token, preventing gateway bypass.
 4. **Structured Audit Telemetry (`gateway/telemetry.py`):**
    - Writes uniform JSON events to `logs/gateway_audit.jsonl` recording timestamps, HTTP methods, paths, subjects, roles, decisions, status codes, latencies, and denial reasons.
+   - Each event includes `schema_version`, unique `event_id`, propagated `request_id`, `status_class`, `outcome`, and `severity`; the same request ID is returned as `X-Request-ID` and propagated to downstream services.
+   - Paths exclude query strings, sensitive reason values are redacted, writes are serialized within a process, and the admin reader skips malformed lines instead of discarding the entire feed.
 
 ---
 
@@ -317,9 +319,10 @@ only carries the token and display identity; it cannot grant permissions.
 Unauthenticated requests receive HTTP 401; authenticated roles outside an
 endpoint's permission receive HTTP 403. Live gateway analysis is admin-only
 because it exposes audit data. The dashboard keeps the session in
-`sessionStorage`, sends the bearer token to protected SIEM endpoints, clears
-the session on logout or token expiry, and hides upload controls for the
-read-only finance role. Gateway health and login remain reachable before sign-in.
+`sessionStorage`, sends the bearer token to protected SIEM endpoints, and hides
+upload controls for the read-only finance role. Gateway health and login remain
+reachable before sign-in. Session handling across tabs, idle timeout and
+deprovisioning are described under Phase 6 ("Session management").
 
 ---
 
@@ -332,6 +335,8 @@ Closes the limitations recorded in earlier phases and brings dependencies and to
 | Shared state | Token buckets, quota windows, login lockout and revocation lists live in `gateway/state.py`: in-memory by default, Redis (atomic Lua scripts) when `SASE_REDIS_URL` is set, so replicas share counters. Wall-clock time so replicas agree. | `gateway/state.py`, `gateway/quota.py` |
 | Token revocation | Access tokens last 15 min and carry a `jti`. `POST /auth/logout` deny-lists the presented tokens; `POST /auth/revoke/{user}` (admin) and any password/role/disable change invalidate every token issued to that user. | `gateway/auth.py`, `gateway/main.py` |
 | Refresh tokens | `POST /auth/refresh` rotates the refresh token (8 h lifetime) and re-reads role/scopes from the directory. Replaying a rotated refresh token is treated as theft and revokes all of that user's sessions. Refresh tokens are rejected as access tokens and vice versa (`typ` claim). The dashboard refreshes in the background and revokes on sign-out. | `gateway/main.py`, `frontend/src/App.jsx` |
+| Session management | One session per browser: open dashboard tabs share it over a `BroadcastChannel` (sign in once, sign out once). Only the leader tab (Web Locks API) refreshes, so tabs never replay a rotated refresh token. Sessions end after 15 min without activity in any tab, and at most 8 h after sign-in (`SESSION_MAX_MINUTES`; refresh keeps the original `sid`/`auth_time`). The leader polls `GET /auth/me` every 30 s. | `frontend/src/session.js`, `frontend/src/App.jsx`, `gateway/auth.py` |
+| Deprovisioning | Every access token is checked against the user directory as well as the revocation list, so disabling, deleting or re-scoping a user cuts access on the next request even if Redis state is lost; open dashboards sign out within ~30 s. | `gateway/auth.py` (`_check_directory`) |
 | User management | Persistent user store (`SASE_USER_STORE`, file mode 0600). Admin API: `GET/POST /users`, `PATCH /users/{u}` (role, scopes, disabled), `PUT /users/{u}/password`, `DELETE /users/{u}`. Self-service `POST /auth/change-password`. Roles limited to `HUMAN_ROLE_SCOPES`; 12–256 char passwords not containing the username; the last active admin cannot be removed. | `gateway/users.py` |
 | Policy as config | PBAC rules and QBAC quotas in `gateway/policy.yml`. Validated on load (unknown services, methods, non-positive quotas are rejected); the gateway refuses to start on an invalid file. `GET /policy` and `POST /policy/reload` (admin); a bad reload keeps the running policy. | `gateway/policy.py` |
 | Lockout abuse | The per-username lock no longer applies on devices (IPs) where that user logged in successfully in the last 30 days, so an attacker elsewhere cannot lock the real user out. The attacker's own IP is still locked. | `gateway/quota.py` |
@@ -355,7 +360,7 @@ The implementation is verified through unit tests and automated regression suite
 | [`tests/test_gateway_phase4.py`](../tests/test_gateway_phase4.py) | 15 | Default primary link dispatch, safe-method failover, unsafe-method replay prevention, query preservation, circuit breaking, single half-open probes, latency tracking, and admin status/reset endpoints. |
 | [`tests/test_gateway_siem.py`](../tests/test_gateway_siem.py) | 9 | Gateway JSON parsing normalization, backend bypass critical signature, password spray threshold, single-account brute force, PBAC privilege probing, QBAC rate exhaustion, private-IP filtering, statistical volume anomalies, and full pipeline reporting. |
 | [`tests/test_gateway_hardening.py`](../tests/test_gateway_hardening.py) | 42 | Phase 6: hardened claims, refresh rotation & reuse detection, logout/admin revocation (gateway and SIEM API), short-secret startup refusal, user CRUD & validation, last-admin guard, hash upgrade, API key revocation, YAML policy load/reload/rejection, known-device lockout, trusted-proxy XFF, header stripping, CORS, Redis store (fakeredis). |
-| [`tests/test_gateway_oidc.py`](../tests/test_gateway_oidc.py) | 49 | OIDC SSO: PKCE login, state/browser binding and replay, ID token signature/claim/nonce/azp/at_hash validation, clock-skew tolerance, one-time handoff, origin check, Memory and Redis stores. |
+| [`tests/test_gateway_oidc.py`](../tests/test_gateway_oidc.py) | 54 | OIDC SSO: PKCE login, state/browser binding and replay, ID token signature/claim/nonce/azp/at_hash validation, clock-skew tolerance, one-time handoff, origin check, Memory and Redis stores. |
 | [`tests/test_filestore.py`](../tests/test_filestore.py) | 4 | Shared file stores across separate processes: no lost concurrent updates, cross-process reload, concurrent first-start seeding, API key revoked on another replica. |
 | [`tests/test_siem_api_auth.py`](../tests/test_siem_api_auth.py) | 5 | SIEM authentication, role permissions, admin-only live analysis, and upload-size enforcement. |
 | [`tests/test_rule_engine.py`](../tests/test_rule_engine.py) | 13 | Existing SIEM rule engine and threshold correlation suite. |
@@ -364,7 +369,10 @@ The implementation is verified through unit tests and automated regression suite
 | [`tests/test_anomaly.py`](../tests/test_anomaly.py) | 3 | Modified Z-score MAD anomaly calculations. |
 | [`tests/test_elastic.py`](../tests/test_elastic.py) | 1 | Elastic export. |
 | [`tests/test_pipeline.py`](../tests/test_pipeline.py) | 1 | End-to-end pipeline run. |
-| **Total Test Suite** | **214** | **Run with `python -m pytest tests/ -q` (Python 3.10+, `pip install -r requirements-dev.txt`).** |
+| [`tests/test_session_management.py`](../tests/test_session_management.py) | 10 | Deprovisioning with the revocation list lost (disable, delete, role change), SIEM API lockout, refresh after role change, session id kept across refresh, 8 h absolute cap, `/auth/me`. |
+| [`tests/test_sample_logs.py`](../tests/test_sample_logs.py) | 10 | Every planted attack step in the sample logs is detected; staff activity stays quiet; fast nmap scan caught, low-and-slow scan evades. |
+| `frontend/tests/*.test.js` | 13 | SSO client, cross-tab session sharing and sign-out, idle timer, single leader (incl. React StrictMode). Run with `npm test` in `frontend/`. |
+| **Total Test Suite** | **242 + 13** | **Run with `python -m pytest tests/ -q` (Python 3.10+, `pip install -r requirements-dev.txt`).** |
 
 ---
 

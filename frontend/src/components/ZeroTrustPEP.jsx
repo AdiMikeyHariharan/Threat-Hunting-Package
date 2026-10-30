@@ -35,6 +35,12 @@ const ROLE_PERMISSIONS = {
   },
 };
 
+const ROLE_AVATARS = {
+  developer: "DEV",
+  finance: "FIN",
+  admin: "ADM",
+};
+
 export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
   const [loading, setLoading] = useState(false);
   const [pepResponse, setPepResponse] = useState(null);
@@ -136,7 +142,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
       {recentAlert && (
         <div className={`iam-alert-banner sev-${recentAlert.severity}`}>
           <div className="alert-content">
-            <span className="alert-icon">🚨</span>
+            <span className="alert-icon" aria-hidden="true">!</span>
             <div>
               <strong>SIEM Security Event Detected: {recentAlert.rule_id}</strong> — {recentAlert.title}
               <div className="alert-sub">
@@ -147,7 +153,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             </div>
           </div>
           <button className="dismiss-btn" onClick={() => setRecentAlert(null)}>
-            ✕
+            Close
           </button>
         </div>
       )}
@@ -157,14 +163,14 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
         {/* Left Panel: Verified Enterprise Security Context */}
         <div className="pep-card identity-context-card">
           <div className="card-header">
-            <h3>🔐 Active Security Context</h3>
+            <h3>Active Security Context</h3>
             <span className="badge verified">Verified Identity</span>
           </div>
 
           <div className="user-profile-summary">
             <div className="profile-hero">
-              <span className="profile-avatar-large">
-                {session.role === "admin" ? "🛡️" : session.role === "finance" ? "💼" : "👩‍💻"}
+              <span className="profile-avatar-large avatar-label">
+                {ROLE_AVATARS[session.role] || "USER"}
               </span>
               <div>
                 <h4 className="profile-name">{session.subject}</h4>
@@ -222,7 +228,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
         {/* Right Panel: Zero-Trust Policy Enforcement Point (PEP) Tester */}
         <div className="pep-card action-testing-card">
           <div className="card-header">
-            <h3>⚡ Policy Enforcement Point (PEP) Dispatcher</h3>
+            <h3>Policy Enforcement Point (PEP) Dispatcher</h3>
             <span className="badge">Reverse Proxy Ingress</span>
           </div>
 
@@ -235,7 +241,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             {/* Inventory */}
             <div className="action-row-item">
               <div className="action-info">
-                <strong>📦 Inventory &amp; Logistics Microservice</strong>
+                <strong>Inventory &amp; Logistics Microservice</strong>
                 <p>Path: <code>GET /proxy/inventory/items</code> · Required: Developer or Admin</p>
               </div>
               <button
@@ -250,7 +256,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             {/* Billing */}
             <div className="action-row-item">
               <div className="action-info">
-                <strong>💳 Financial Invoicing &amp; Billing API</strong>
+                <strong>Financial Invoicing &amp; Billing API</strong>
                 <p>Path: <code>GET /proxy/billing/invoices</code> · Decrypts &amp; injects Vault secret</p>
               </div>
               <button
@@ -265,7 +271,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             {/* Admin Panel */}
             <div className="action-row-item">
               <div className="action-info">
-                <strong>⚙️ Core Cluster Admin Operations</strong>
+                <strong>Core Cluster Admin Operations</strong>
                 <p>Path: <code>GET /proxy/admin-panel/config</code> · Gated strictly to Admin</p>
               </div>
               <button
@@ -280,7 +286,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             {/* Bypass Test */}
             <div className="action-row-item threat-action">
               <div className="action-info">
-                <strong>⚡ Direct Backend Architecture Bypass</strong>
+                <strong>Direct Backend Architecture Bypass</strong>
                 <p>Attempts direct connection bypassing /proxy/ · Triggers <strong>CRITICAL SIEM Alert</strong></p>
               </div>
               <button
@@ -295,7 +301,7 @@ export default function ZeroTrustPEP({ session, onRefreshSIEM }) {
             {/* QBAC Flood */}
             <div className="action-row-item rate-action">
               <div className="action-info">
-                <strong>💥 QBAC Rate-Limit Flood (Burst Stress)</strong>
+                <strong>QBAC Rate-Limit Flood (Burst Stress)</strong>
                 <p>Sends 25 rapid requests in 1 second · Exceeds bucket capacity &amp; trips HTTP 429</p>
               </div>
               <button

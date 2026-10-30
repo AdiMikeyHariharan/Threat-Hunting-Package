@@ -387,6 +387,18 @@ select {
   color: var(--accent);
   font-weight: 600;
 }
+.tab-marker {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+.tab-restricted {
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
 
 /* ---- IAM Portal ---- */
 .iam-portal {
@@ -766,7 +778,7 @@ select {
   border-radius: 6px;
   font-size: 11.5px;
   max-height: 160px;
-  overflow-y: auto;
+  overflow: auto;
 }
 
 .iam-alert-banner {
@@ -1023,6 +1035,14 @@ select {
   margin-bottom: 18px;
   color: #fca5a5;
   font-size: 12.5px;
+}
+.login-alert.notice {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #bae6fd;
+}
+.login-alert.notice .alert-body p {
+  color: #e0f2fe;
 }
 .login-alert.critical-lockout {
   background: rgba(239, 68, 68, 0.2);
@@ -1467,6 +1487,11 @@ select {
 .user-avatar-circle {
   font-size: 16px;
 }
+.avatar-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
 .user-info-text {
   display: flex;
   align-items: center;
@@ -1541,16 +1566,18 @@ select {
 }
 .pep-main-grid {
   display: grid;
-  grid-template-columns: 1fr 1.35fr;
+  /* minmax(0, …): a long response line must scroll inside its <pre>, not widen the page */
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr);
   gap: 22px;
 }
 @media (max-width: 1000px) {
   .pep-main-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
 .pep-card {
+  min-width: 0;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 14px;
@@ -1955,10 +1982,16 @@ select {
   text-align: center;
   box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
 }
-.barrier-icon {
-  font-size: 48px;
-  display: block;
+.barrier-label {
+  display: inline-block;
   margin-bottom: 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--sev-critical);
+  border-radius: 999px;
+  color: #fca5a5;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
 }
 .barrier-box h3 {
   margin: 0 0 10px;
@@ -1987,5 +2020,4 @@ select {
   border-top: 1px solid var(--border);
   padding-top: 12px;
 }
-
 

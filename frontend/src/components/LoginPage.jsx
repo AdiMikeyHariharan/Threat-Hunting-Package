@@ -20,7 +20,7 @@ function ShieldIcon() {
   );
 }
 
-export default function LoginPage({ onLoginSuccess, ssoError = null, ssoPending = false }) {
+export default function LoginPage({ onLoginSuccess, ssoError = null, ssoPending = false, ssoPrompt = null, notice = null }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -49,7 +49,7 @@ export default function LoginPage({ onLoginSuccess, ssoError = null, ssoPending 
   function handleSso() {
     setError(null);
     try {
-      beginSsoLogin();
+      beginSsoLogin({ prompt: ssoError ? "login" : ssoPrompt });
     } catch (ssoError) {
       setError(ssoError.message);
     }
@@ -123,9 +123,19 @@ export default function LoginPage({ onLoginSuccess, ssoError = null, ssoPending 
             <p>Use your company account to access the security operations console.</p>
           </div>
 
+          {notice && !visibleError && (
+            <div className="login-alert notice" role="status" aria-live="polite">
+              <span className="alert-badge-icon">i</span>
+              <div className="alert-body">
+                <strong>Signed out</strong>
+                <p>{notice}</p>
+              </div>
+            </div>
+          )}
+
           {visibleError && (
             <div className="login-alert" role="alert" aria-live="polite">
-              <span className="alert-badge-icon">{lockoutTimer > 0 ? "⌛" : "!"}</span>
+              <span className="alert-badge-icon">!</span>
               <div className="alert-body">
                 <strong>{lockoutTimer > 0 ? "Sign-in temporarily limited" : "Unable to sign in"}</strong>
                 <p>{visibleError}</p>

@@ -57,6 +57,15 @@ Register that exact development callback with the provider too. The HTTP
 exception applies only to `localhost`, `127.0.0.1`, and `::1`; it does not permit
 HTTP for remote hosts. Keep it disabled in production.
 
+For a local walkthrough without a real identity provider, start the bundled
+demo-only provider on port `8090` and configure the gateway with its matching
+loopback settings. It accepts the demo identity `alice` with password
+`demo-sso-password`, keeps a provider session after dashboard logout, and
+honors `prompt=login` so the password prompt can be demonstrated again. After a
+denied sign-in the dashboard also retries with `prompt=login`, so a user can switch
+accounts; Keycloak ignores `prompt=select_account`, so it is not forwarded.
+Never expose this provider outside loopback or use it in production.
+
 Partial or invalid OIDC configuration fails at backend startup. When all required
 OIDC settings are absent, the SSO button stays disabled and the login/callback/
 session endpoints return 503. Existing password authentication remains available.
@@ -108,9 +117,13 @@ logging for that route at your ingress/proxy and ASGI server (for Uvicorn, use
   assurance level.
 - Gateway refresh tokens continue to use the local user directory. Provider
   account disablement is not polled during an existing gateway session; disable
-  the local user or revoke its gateway sessions when immediate removal is needed.
-- The dashboard still keeps gateway tokens in `sessionStorage`. The HttpOnly
-  cookie is a one-time handoff, not a replacement for the existing bearer session.
+  the local user instead. That takes effect on the user's next request, and open
+  dashboards sign themselves out within about 30 seconds.
+- Sessions last at most 8 hours from sign-in, however often they are refreshed,
+  and end after 15 minutes without activity in any dashboard tab.
+- The dashboard keeps gateway tokens in `sessionStorage` (per tab, cleared when
+  the tab closes); open tabs share one session over a `BroadcastChannel`. The
+  HttpOnly cookie is a one-time handoff, not a replacement for the bearer session.
 
 The protocol implementation follows
 [OIDC ID Token Validation](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation)

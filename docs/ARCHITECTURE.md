@@ -123,7 +123,7 @@ Suggested section mapping for the written submission:
 3. **Feature extraction** — §1 above; show a rule and how it is evaluated.
 4. **Enhancements** — §2; contrast stock vs enhanced behaviour on the sample.
 5. **Logging & auditability** — §4; include a screenshot of `siem_hunter.jsonl`.
-6. **Evaluation** — run on `sample_data/auth.log`; the 9 findings; note that the
+6. **Evaluation** — run on `sample_data/auth.log`; the 7 findings; note that the
    anomaly hunter *independently* flags the brute-force IP (defence in depth).
 7. **Limitations & future work** — per-window anomaly baselining, more log
    sources, rule unit-test harness.

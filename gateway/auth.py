@@ -22,7 +22,7 @@ from typing import Optional
 import jwt
 from fastapi import Depends, Header, HTTPException, Request, status
 
-from . import state
+from . import state, users
 from .config import (
     ADMIN_ROLES,
     API_KEY_STORE,
@@ -34,6 +34,7 @@ from .config import (
     MACHINE_ROLE_SCOPES,
     REFRESH_TOKEN_EXPIRATION_MINUTES,
     REGISTERED_SERVICES,
+    SESSION_MAX_MINUTES,
     TRUSTED_PROXIES,
 )
 from .filestore import JsonFileStore
@@ -138,8 +139,24 @@ def get_client_ip(request: Request) -> str:
 
 # --- JWTs --------------------------------------------------------------------
 
-def _issue(subject: str, token_type: str, lifetime_minutes: int, extra: dict) -> str:
+def new_session() -> dict:
+    """A sign-in starts a session; every token refreshed from it keeps its id and start."""
+    return {"sid": uuid.uuid4().hex, "auth_time": time.time()}
+
+
+def session_of(claims: dict) -> dict:
+    # Tokens from before sessions were tracked: treat their issue time as the start.
+    return {"sid": claims.get("sid") or claims["jti"], "auth_time": float(claims.get("auth_time", claims["iat"]))}
+
+
+def session_expires_at(session: dict) -> float:
+    return session["auth_time"] + SESSION_MAX_MINUTES * 60
+
+
+def _issue(subject: str, token_type: str, lifetime_minutes: int, extra: dict,
+           session: Optional[dict] = None) -> str:
     now = time.time()
+    session = session or new_session()
     payload = {
         "iss": JWT_ISSUER,
         "aud": JWT_AUDIENCE,
@@ -148,20 +165,25 @@ def _issue(subject: str, token_type: str, lifetime_minutes: int, extra: dict) ->
         "jti": uuid.uuid4().hex,
         # Fractional iat so a revocation never spares tokens from the same second.
         "iat": now,
-        "exp": int(now + lifetime_minutes * 60),
+        # Never outlive the session's absolute lifetime, however often it is refreshed.
+        "exp": int(min(now + lifetime_minutes * 60, session_expires_at(session))),
+        "sid": session["sid"],
+        "auth_time": session["auth_time"],
         **extra,
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
-def create_access_token(subject: str, role: str, scopes: Optional[list[str]] = None) -> str:
+def create_access_token(subject: str, role: str, scopes: Optional[list[str]] = None,
+                        session: Optional[dict] = None) -> str:
     """Generate a short-lived signed JWT access token for a human user."""
-    return _issue(subject, "access", JWT_EXPIRATION_MINUTES, {"role": role, "scopes": scopes or ["read"]})
+    return _issue(subject, "access", JWT_EXPIRATION_MINUTES,
+                  {"role": role, "scopes": scopes or ["read"]}, session)
 
 
-def create_refresh_token(subject: str) -> str:
+def create_refresh_token(subject: str, session: Optional[dict] = None) -> str:
     """Generate a refresh token. It carries no role: refresh re-reads the user directory."""
-    return _issue(subject, "refresh", REFRESH_TOKEN_EXPIRATION_MINUTES, {})
+    return _issue(subject, "refresh", REFRESH_TOKEN_EXPIRATION_MINUTES, {}, session)
 
 
 def _unauthorized(detail: str) -> HTTPException:
@@ -197,7 +219,21 @@ def verify_jwt_token(token: str, expected_type: str = "access") -> dict:
     claims = decode_jwt_token(token, expected_type)
     if is_token_revoked(claims):
         raise _unauthorized("Token has been revoked. Please re-authenticate.")
+    if expected_type == "access":
+        _check_directory(claims)
     return claims
+
+
+def _check_directory(claims: dict) -> None:
+    """Deprovisioning must not depend on the revocation list alone (it lives in
+    Redis/memory and can be lost): every access token is checked against the
+    user directory, so a disabled, deleted or re-scoped account is cut off on
+    its very next request."""
+    user = users.get_user(claims["sub"])
+    if user is None or user.disabled:
+        raise _unauthorized("Account is not active.")
+    if claims.get("role") != user.role or not set(claims.get("scopes", [])) <= set(user.scopes):
+        raise _unauthorized("Account permissions changed. Please sign in again.")
 
 
 def revoke_token(claims: dict) -> None:

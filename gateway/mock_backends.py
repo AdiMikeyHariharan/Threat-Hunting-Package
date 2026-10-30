@@ -19,7 +19,7 @@ from typing import Any, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 
 from .config import INTERNAL_GATEWAY_TOKEN
-from .telemetry import log_gateway_event
+from .telemetry import log_gateway_event, request_context_middleware
 
 
 def require_internal_caller(
@@ -44,6 +44,7 @@ app = FastAPI(
     redoc_url=None,
     openapi_url=None,
 )
+app.middleware("http")(request_context_middleware)
 
 
 def _credential_fingerprint(request: Request, header: str) -> dict[str, Any]:

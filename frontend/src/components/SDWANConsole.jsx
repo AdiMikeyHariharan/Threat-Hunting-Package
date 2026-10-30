@@ -42,7 +42,7 @@ export default function SDWANConsole({ session }) {
     return (
       <div className="admin-barrier-screen">
         <div className="barrier-box">
-          <span className="barrier-icon">🚫</span>
+          <span className="barrier-label">RESTRICTED</span>
           <h3>Administrative Clearance Required</h3>
           <p>
             SD-WAN Virtual Routing &amp; Circuit Breaker Infrastructure is restricted to identities
@@ -65,7 +65,7 @@ export default function SDWANConsole({ session }) {
       <div className="sdwan-hero-card">
         <div className="hero-top">
           <div>
-            <h3>🌐 SD-WAN Virtual Routing &amp; Infrastructure Health</h3>
+            <h3>SD-WAN Virtual Routing &amp; Infrastructure Health</h3>
             <p className="hero-sub">
               Multi-path dynamic upstream routing, Exponential Moving Average (EMA) latency tracking,
               and automated circuit breaker failover.
@@ -109,7 +109,7 @@ export default function SDWANConsole({ session }) {
                     <div className="ep-top">
                       <div className="ep-identity">
                         <strong className="ep-name">
-                          {ep.name === "primary" ? "⭐ PRIMARY LINK" : "🔁 SECONDARY BACKUP"}
+                          {ep.name === "primary" ? "PRIMARY LINK" : "SECONDARY BACKUP"}
                         </strong>
                         <span className="ep-region">{ep.region.toUpperCase()}</span>
                       </div>

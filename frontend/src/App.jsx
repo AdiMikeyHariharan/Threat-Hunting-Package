@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
-import { analyzeSample, analyzeUpload, completeSsoLogin, getSamples, logoutGateway, refreshGateway } from "./api.js";
+import { useEffect, useRef, useState } from "react";
+import {
+  analyzeSample, analyzeUpload, completeSsoLogin, getMe, getSamples, logoutGateway, refreshGateway,
+} from "./api.js";
+import { createSessionSync } from "./session.js";
 import SummaryCards from "./components/SummaryCards.jsx";
 import DetectorBreakdown from "./components/DetectorBreakdown.jsx";
 import DetectionsTable from "./components/DetectionsTable.jsx";
@@ -8,19 +11,28 @@ import SDWANConsole from "./components/SDWANConsole.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 
 const ROLE_AVATARS = {
-  developer: "👩‍💻",
-  finance: "💼",
-  admin: "🛡️",
+  developer: "DEV",
+  finance: "FIN",
+  admin: "ADM",
 };
 
 function withExpiry(tokens) {
   return { ...tokens, expires_at: Date.now() + (tokens.expires_in || 0) * 1000 };
 }
 
+// Shown on the login screen after a sign-out the user didn't click themselves.
+const SIGN_OUT_NOTICES = {
+  idle: "You were signed out after 15 minutes of inactivity.",
+  expired: "Your session ended. Please sign in again.",
+  revoked: "Your access was removed or changed by an administrator. Please sign in again.",
+};
+const SESSION_CHECK_MS = 30_000;
+
 export default function App() {
   const [ssoResult] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("sso"));
   const [ssoPending, setSsoPending] = useState(ssoResult === "complete");
   const [ssoError, setSsoError] = useState(null);
+  const [ssoPrompt, setSsoPrompt] = useState(null);
   const [session, setSession] = useState(() => {
     if (new URLSearchParams(window.location.hash.slice(1)).has("sso")) return null;
     try {
@@ -36,6 +48,81 @@ export default function App() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [notice, setNotice] = useState(null);
+  const [isLeader, setIsLeader] = useState(false);
+
+  // One session per browser, shared by every dashboard tab (see session.js).
+  const syncRef = useRef(null);
+  if (!syncRef.current) syncRef.current = createSessionSync();
+  const sync = syncRef.current;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+
+  function startSession(tokens) {
+    const next = withExpiry(tokens);
+    setNotice(null);
+    setSsoError(null);
+    setSsoPrompt(null);
+    setSession(next);
+    sync.publishSession(next);
+  }
+
+  function endSession(revoke, reason) {
+    const current = sessionRef.current;
+    if (current && revoke) logoutGateway(current.access_token, current.refresh_token);
+    setSsoError(null);
+    setSsoPrompt("login");
+    setResult(null);
+    setNotice(SIGN_OUT_NOTICES[reason] || null);
+    setSession(null);
+  }
+
+  // Sign out every tab in this browser: revoke the tokens once, then tell the others.
+  function signOutEverywhere(reason) {
+    const sessionId = sessionRef.current?.session_id;
+    endSession(true, reason);
+    sync.announceSignOut(reason, sessionId);
+  }
+
+  useEffect(() => {
+    const offs = [
+      // Another tab signed in or rotated tokens.
+      sync.on("session", ({ session: next }) => {
+        const current = sessionRef.current;
+        if (current && current.session_id !== next.session_id) {
+          logoutGateway(current.access_token, current.refresh_token); // replaced by a new sign-in
+        }
+        setNotice(null);
+        setSsoError(null);
+        setSsoPrompt(null);
+        setSession(next);
+      }),
+      // Another tab signed out. It already revoked the shared session; revoke ours
+      // only if this tab somehow held a different one.
+      sync.on("signed-out", ({ reason, sessionId }) => {
+        const current = sessionRef.current;
+        if (!current) return;
+        endSession(current.session_id !== sessionId, reason);
+      }),
+      // A newly opened tab asks whether anyone is signed in.
+      sync.on("hello", () => {
+        if (sessionRef.current) sync.publishSession(sessionRef.current);
+      }),
+    ];
+    if (!sessionRef.current) sync.requestSession();
+    return () => offs.forEach((off) => off());
+  }, []);
+
+  // Exactly one tab (the leader) refreshes tokens and watches the session.
+  useEffect(() => sync.lead(() => setIsLeader(true)), []);
+
+  // Any keyboard or pointer activity, in any tab, keeps the session alive.
+  useEffect(() => {
+    const onActivity = () => sync.recordActivity();
+    const events = ["pointerdown", "pointermove", "keydown", "wheel", "touchstart"];
+    events.forEach((name) => window.addEventListener(name, onActivity, { passive: true }));
+    return () => events.forEach((name) => window.removeEventListener(name, onActivity));
+  }, []);
 
   useEffect(() => {
     if (!ssoResult) return undefined;
@@ -48,24 +135,15 @@ export default function App() {
     }
     let active = true;
     completeSsoLogin()
-      .then((tokens) => {
-        if (active) {
-          setSession(withExpiry(tokens));
-          setSsoError(null);
-        }
-      })
+      .then((tokens) => { if (active) startSession(tokens); })
       .catch((err) => { if (active) setSsoError(err.message); })
       .finally(() => { if (active) setSsoPending(false); });
     return () => { active = false; };
   }, [ssoResult]);
 
-  // Listen for session expiry events
+  // Any API call that comes back 401 ends the session in every tab.
   useEffect(() => {
-    const onExpired = () => {
-      setSession(null);
-      setResult(null);
-      setError("Session expired or unauthorized. Please sign in again.");
-    };
+    const onExpired = () => { if (sessionRef.current) signOutEverywhere("expired"); };
     window.addEventListener("siem:session-expired", onExpired);
     return () => window.removeEventListener("siem:session-expired", onExpired);
   }, []);
@@ -82,23 +160,31 @@ export default function App() {
     }
   }, [session]);
 
-  // Refresh the short-lived access token a minute before it expires.
+  // Leader only: refresh a minute before the access token expires (unless idle),
+  // and check every 30 s that the session is still valid and the user still active.
   useEffect(() => {
-    if (!session?.refresh_token || !session?.expires_at) return;
-    const delay = Math.max(0, session.expires_at - Date.now() - 60_000);
-    const timer = window.setTimeout(async () => {
+    if (!isLeader || !session?.refresh_token || !session?.expires_at) return undefined;
+    const refreshTimer = window.setTimeout(async () => {
+      if (sync.isIdle()) return signOutEverywhere("idle");
       try {
-        setSession(withExpiry(await refreshGateway(session.refresh_token)));
-      } catch {
-        window.dispatchEvent(new Event("siem:session-expired"));
+        startSession(await refreshGateway(session.refresh_token));
+      } catch (err) {
+        signOutEverywhere(/not active/i.test(err.message) ? "revoked" : "expired");
       }
-    }, delay);
-    return () => window.clearTimeout(timer);
-  }, [session?.refresh_token, session?.expires_at]);
+    }, Math.max(0, session.expires_at - Date.now() - 60_000));
+    const watch = window.setInterval(async () => {
+      if (sync.isIdle()) return signOutEverywhere("idle");
+      // 401 = disabled, deleted, role changed or revoked; a network error is not a sign-out.
+      if ((await getMe(session.access_token)) === 401) signOutEverywhere("revoked");
+    }, SESSION_CHECK_MS);
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.clearInterval(watch);
+    };
+  }, [isLeader, session?.access_token, session?.expires_at]);
 
   function signOut() {
-    if (session) logoutGateway(session.access_token, session.refresh_token);
-    setSession(null);
+    signOutEverywhere("user");
   }
 
   // When session is active, fetch samples and load default analysis with the token
@@ -172,9 +258,11 @@ export default function App() {
       <LoginPage
         ssoError={ssoError}
         ssoPending={ssoPending}
+        ssoPrompt={ssoPrompt}
+        notice={notice}
         onLoginSuccess={(newSession) => {
           setError(null);
-          setSession(withExpiry(newSession));
+          startSession(newSession);
           setActiveTab("pep");
         }}
       />
@@ -182,7 +270,7 @@ export default function App() {
   }
 
   // --- 2. Authenticated Enterprise Workspace ---
-  const avatar = ROLE_AVATARS[session.role] || "👤";
+  const avatar = ROLE_AVATARS[session.role] || "USER";
 
   return (
     <div className="app">
@@ -210,7 +298,7 @@ export default function App() {
 
           {/* User Identity Profile Pill */}
           <div className="user-identity-pill">
-            <span className="user-avatar-circle">{avatar}</span>
+            <span className="user-avatar-circle avatar-label">{avatar}</span>
             <div className="user-info-text">
               <strong>{session.subject}</strong>
               <span className={`user-role-badge ${session.role}`}>{session.role}</span>
@@ -259,7 +347,7 @@ export default function App() {
           className={`tab-btn ${activeTab === "pep" ? "active" : ""}`}
           onClick={() => setActiveTab("pep")}
         >
-          <span>⚡</span> Protected Microservices &amp; PEP
+          <span className="tab-marker" aria-hidden="true">PEP</span> Protected Microservices &amp; PEP
         </button>
         <button
           className={`tab-btn ${activeTab === "siem" ? "active" : ""}`}
@@ -268,17 +356,17 @@ export default function App() {
             run(source);
           }}
         >
-          <span>🛡️</span> SIEM Threat Hunting SOC
+          <span className="tab-marker" aria-hidden="true">SIEM</span> SIEM Threat Hunting SOC
         </button>
         <button
           className={`tab-btn ${activeTab === "sdwan" ? "active" : ""}`}
           onClick={() => setActiveTab("sdwan")}
         >
-          <span>🌐</span> SD-WAN Virtual Routing &amp; Vault {session.role !== "admin" && "🔒"}
+          <span className="tab-marker" aria-hidden="true">SD-WAN</span> SD-WAN Virtual Routing &amp; Vault {session.role !== "admin" && <span className="tab-restricted">Restricted</span>}
         </button>
       </nav>
 
-      {error && <div className="error-banner">⚠ {error}</div>}
+      {error && <div className="error-banner"><strong>Error:</strong> {error}</div>}
 
       {/* View 1: Zero-Trust Policy Enforcement Point (PEP) */}
       {activeTab === "pep" && (

@@ -44,6 +44,15 @@ test("login defaults to the gateway and rejects cross-origin overrides", async (
   assert.throws(() => invalid.beginSsoLogin(), /dashboard's origin/);
 });
 
+test("only the login prompt is forwarded to the same-origin login endpoint", async () => {
+  let redirected;
+  const client = await api({ assign: (url) => { redirected = url; } });
+  client.beginSsoLogin({ prompt: "login" });
+  assert.equal(redirected, "https://dashboard.example/api/gateway/auth/sso/login?prompt=login");
+  client.beginSsoLogin({ prompt: "select_account" });
+  assert.equal(redirected, "https://dashboard.example/api/gateway/auth/sso/login");
+});
+
 test("concurrent handoff completion performs one cookie exchange", async () => {
   let requests = 0;
   let finish;

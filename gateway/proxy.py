@@ -13,7 +13,7 @@ from .config import INTERNAL_GATEWAY_TOKEN
 from .policy import enforce_pbac
 from .quota import enforce_quota
 from .sdwan import UpstreamEndpoint, sdwan_router
-from .telemetry import log_gateway_event
+from .telemetry import current_request_id, log_gateway_event
 from .vault import VaultError, vault
 
 # Transport used for upstream calls. None = real network. Tests and the demo
@@ -100,6 +100,8 @@ async def forward_request(
     downstream_headers["x-sase-role"] = identity.role
     downstream_headers["x-sase-auth-type"] = identity.auth_type
     downstream_headers["x-sase-client-ip"] = client_ip
+    if request_id := current_request_id():
+        downstream_headers["x-request-id"] = request_id
 
     # Vault: attach downstream credential (decrypted in memory only)
     try:

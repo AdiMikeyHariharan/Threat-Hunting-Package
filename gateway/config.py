@@ -58,6 +58,9 @@ JWT_AUDIENCE = "micro-sase"
 # Access tokens are short-lived; sessions continue via rotating refresh tokens.
 JWT_EXPIRATION_MINUTES = 15
 REFRESH_TOKEN_EXPIRATION_MINUTES = 8 * 60
+# Absolute session lifetime: refreshing never extends a session past this,
+# counted from the original sign-in (OWASP session management).
+SESSION_MAX_MINUTES = 8 * 60
 
 # Shared secret between the gateway and its backends. Backends reject any
 # request without it, so they can't be reached by skipping the PEP.
